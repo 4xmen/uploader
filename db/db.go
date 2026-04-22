@@ -5,7 +5,7 @@ import (
 	"log"
 	"time"
 
-	_ "github.com/mattn/go-sqlite3"
+	_ "modernc.org/sqlite"
 	"xmen-uploader/config"
 	"xmen-uploader/models"
 )
@@ -14,7 +14,7 @@ var DB *sql.DB
 
 func InitDB() {
 	var err error
-	DB, err = sql.Open("sqlite3", config.AppConfig.DatabasePath)
+	DB, err = sql.Open("sqlite", config.AppConfig.DatabasePath)
 	if err != nil {
 		log.Fatalf("Failed to open database: %v", err)
 	}

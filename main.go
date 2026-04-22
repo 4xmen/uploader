@@ -1,6 +1,7 @@
 package main
 
 import (
+	"encoding/json"
 	"log"
 	"net/http"
 	"os"
@@ -41,6 +42,15 @@ func main() {
 
 	// API Routes
 	r.Route("/api", func(r chi.Router) {
+		// Public config endpoint
+		r.Get("/config", func(w http.ResponseWriter, r *http.Request) {
+			w.Header().Set("Content-Type", "application/json")
+			json.NewEncoder(w).Encode(map[string]interface{}{
+				"max_upload_size_bytes": config.AppConfig.MaxUploadSize,
+				"max_lifetime_days":     config.AppConfig.MaxAllowedLifetimeDays,
+			})
+		})
+
 		// Stricter rate limit for uploads: 10 uploads per minute per IP
 		r.With(httprate.LimitByIP(10, 1*time.Minute)).Post("/upload", handlers.UploadHandler)
 		
