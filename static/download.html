@@ -1,0 +1,114 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Download File - XMen Uploader</title>
+    <link rel="stylesheet" href="/style.css">
+</head>
+<body>
+    <div class="container" id="downloadContainer">
+        <h1>Download File</h1>
+        <p class="subtitle">Your file is ready to download securely.</p>
+
+        <div id="loadingIndicator">
+            <p>Loading file info...</p>
+        </div>
+
+        <div id="fileError" class="hidden">
+            <svg xmlns="http://www.w3.org/2000/svg" style="width:48px;height:48px;color:var(--danger-color);margin:0 auto 16px;" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+            </svg>
+            <h2 id="errorTitle">File Unavailable</h2>
+            <p class="subtitle" id="errorMessageDesc">This file might have expired or reached its download limit.</p>
+        </div>
+
+        <div id="fileDetails" class="hidden">
+            <div class="file-info">
+                <div class="file-info-row">
+                    <span class="file-info-label">Name</span>
+                    <span class="file-info-value" id="dispName">-</span>
+                </div>
+                <div class="file-info-row">
+                    <span class="file-info-label">Size</span>
+                    <span class="file-info-value" id="dispSize">-</span>
+                </div>
+                <div class="file-info-row">
+                    <span class="file-info-label">Expires</span>
+                    <span class="file-info-value" id="dispExpires">-</span>
+                </div>
+                <div class="file-info-row" id="downloadsRow">
+                    <span class="file-info-label">Downloads</span>
+                    <span class="file-info-value" id="dispDownloads">-</span>
+                </div>
+            </div>
+
+            <a href="#" id="downloadLink" class="btn btn-primary" download>
+                Download Now
+            </a>
+            
+            <a href="/" class="btn btn-secondary" style="margin-top:16px;">
+                Upload a File
+            </a>
+        </div>
+    </div>
+
+    <script>
+        const fileId = window.location.pathname.split('/').pop();
+        const loadingIndicator = document.getElementById('loadingIndicator');
+        const fileError = document.getElementById('fileError');
+        const fileDetails = document.getElementById('fileDetails');
+        const dispName = document.getElementById('dispName');
+        const dispSize = document.getElementById('dispSize');
+        const dispExpires = document.getElementById('dispExpires');
+        const dispDownloads = document.getElementById('dispDownloads');
+        const downloadsRow = document.getElementById('downloadsRow');
+        const downloadLink = document.getElementById('downloadLink');
+
+        function formatBytes(bytes, decimals = 2) {
+            if (!+bytes) return '0 Bytes';
+            const k = 1024;
+            const dm = decimals < 0 ? 0 : decimals;
+            const sizes = ['Bytes', 'KB', 'MB', 'GB', 'TB'];
+            const i = Math.floor(Math.log(bytes) / Math.log(k));
+            return `${parseFloat((bytes / Math.pow(k, i)).toFixed(dm))} ${sizes[i]}`;
+        }
+
+        // Fetch file info
+        fetch(`/api/info/${fileId}`)
+            .then(res => {
+                if (!res.ok) throw new Error('File not found or expired');
+                return res.json();
+            })
+            .then(data => {
+                loadingIndicator.classList.add('hidden');
+                fileDetails.classList.remove('hidden');
+
+                dispName.textContent = data.original_name;
+                dispSize.textContent = formatBytes(data.size);
+                
+                const expiresDate = new Date(data.expires_at);
+                dispExpires.textContent = expiresDate.toLocaleString();
+
+                if (data.max_downloads > 0) {
+                    dispDownloads.textContent = `${data.download_count} / ${data.max_downloads}`;
+                } else {
+                    downloadsRow.classList.add('hidden');
+                }
+
+                downloadLink.href = `/api/download/${fileId}`;
+            })
+            .catch(err => {
+                loadingIndicator.classList.add('hidden');
+                fileError.classList.remove('hidden');
+            });
+
+        downloadLink.addEventListener('click', () => {
+            // Give it a moment to trigger download, then refresh stats
+            setTimeout(() => {
+                location.reload();
+            }, 1000);
+        });
+    </script>
+</body>
+</html>

@@ -1,0 +1,167 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>XMen Uploader</title>
+    <link rel="stylesheet" href="/style.css">
+</head>
+<body>
+    <div class="container" id="uploadContainer">
+        <h1>XMen Uploader</h1>
+        <p class="subtitle">Secure, fast, and minimal file sharing.</p>
+
+        <form id="uploadForm">
+            <div class="upload-area" id="dropZone">
+                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5m-13.5-9L12 3m0 0l4.5 4.5M12 3v13.5" />
+                </svg>
+                <span id="fileNameDisplay">Drag & drop your file here<br>or click to browse</span>
+                <input type="file" id="fileInput" name="file" required>
+            </div>
+
+            <div class="form-group">
+                <label for="max_downloads">Max Downloads (0 for unlimited)</label>
+                <input type="number" id="max_downloads" name="max_downloads" class="form-control" value="0" min="0">
+            </div>
+
+            <div class="form-group">
+                <label for="lifetime_hours">File Lifetime (Hours)</label>
+                <input type="number" id="lifetime_hours" name="lifetime_hours" class="form-control" value="24" min="1" max="168">
+            </div>
+
+            <div class="error-message" id="errorMessage"></div>
+
+            <button type="submit" class="btn btn-primary" id="uploadBtn">Upload File</button>
+
+            <div class="progress-container" id="progressContainer">
+                <div class="progress-bar">
+                    <div class="progress-fill" id="progressFill"></div>
+                </div>
+            </div>
+        </form>
+
+        <div class="success-area" id="successArea">
+            <svg xmlns="http://www.w3.org/2000/svg" style="width:48px;height:48px;color:var(--success-color);margin:0 auto 16px;" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+            </svg>
+            <h2>Upload Successful!</h2>
+            <p class="subtitle" style="margin-bottom:16px;">Your file is ready to share.</p>
+            
+            <div class="link-input-group">
+                <input type="text" id="shareLink" readonly>
+                <button type="button" class="btn btn-secondary" style="width:auto;padding:12px 20px;" id="copyBtn">Copy</button>
+            </div>
+            
+            <button class="btn btn-secondary" style="margin-top:24px;" onclick="location.reload()">Upload Another</button>
+        </div>
+    </div>
+
+    <script>
+        const dropZone = document.getElementById('dropZone');
+        const fileInput = document.getElementById('fileInput');
+        const fileNameDisplay = document.getElementById('fileNameDisplay');
+        const uploadForm = document.getElementById('uploadForm');
+        const progressContainer = document.getElementById('progressContainer');
+        const progressFill = document.getElementById('progressFill');
+        const uploadBtn = document.getElementById('uploadBtn');
+        const successArea = document.getElementById('successArea');
+        const shareLink = document.getElementById('shareLink');
+        const copyBtn = document.getElementById('copyBtn');
+        const errorMessage = document.getElementById('errorMessage');
+
+        // Drag and drop handling
+        dropZone.addEventListener('click', () => fileInput.click());
+        
+        dropZone.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            dropZone.classList.add('dragover');
+        });
+
+        dropZone.addEventListener('dragleave', () => {
+            dropZone.classList.remove('dragover');
+        });
+
+        dropZone.addEventListener('drop', (e) => {
+            e.preventDefault();
+            dropZone.classList.remove('dragover');
+            if (e.dataTransfer.files.length) {
+                fileInput.files = e.dataTransfer.files;
+                updateFileName();
+            }
+        });
+
+        fileInput.addEventListener('change', updateFileName);
+
+        function updateFileName() {
+            if (fileInput.files.length > 0) {
+                fileNameDisplay.innerHTML = `<strong>${fileInput.files[0].name}</strong>`;
+            }
+        }
+
+        uploadForm.addEventListener('submit', (e) => {
+            e.preventDefault();
+            if (fileInput.files.length === 0) return;
+
+            errorMessage.style.display = 'none';
+            uploadBtn.style.display = 'none';
+            progressContainer.style.display = 'block';
+
+            const formData = new FormData(uploadForm);
+            const xhr = new XMLHttpRequest();
+
+            xhr.open('POST', '/api/upload', true);
+
+            xhr.upload.onprogress = (e) => {
+                if (e.lengthComputable) {
+                    const percentComplete = (e.loaded / e.total) * 100;
+                    progressFill.style.width = percentComplete + '%';
+                }
+            };
+
+            xhr.onload = function() {
+                if (xhr.status === 200) {
+                    const res = JSON.parse(xhr.responseText);
+                    if (res.success) {
+                        uploadForm.style.display = 'none';
+                        successArea.style.display = 'block';
+                        shareLink.value = window.location.origin + '/f/' + res.file.id;
+                    } else {
+                        showError(res.message);
+                    }
+                } else {
+                    try {
+                        const res = JSON.parse(xhr.responseText);
+                        showError(res.message || "Upload failed.");
+                    } catch(e) {
+                        showError("Upload failed due to an error.");
+                    }
+                }
+            };
+
+            xhr.onerror = function() {
+                showError("Network error occurred.");
+            };
+
+            xhr.send(formData);
+        });
+
+        function showError(msg) {
+            errorMessage.textContent = msg;
+            errorMessage.style.display = 'block';
+            uploadBtn.style.display = 'inline-block';
+            progressContainer.style.display = 'none';
+            progressFill.style.width = '0%';
+        }
+
+        copyBtn.addEventListener('click', () => {
+            shareLink.select();
+            document.execCommand('copy');
+            copyBtn.textContent = 'Copied!';
+            setTimeout(() => {
+                copyBtn.textContent = 'Copy';
+            }, 2000);
+        });
+    </script>
+</body>
+</html>

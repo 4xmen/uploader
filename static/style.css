@@ -1,0 +1,277 @@
+:root {
+  --bg-color: #f5f5f7;
+  --text-color: #1d1d1f;
+  --text-secondary: #86868b;
+  --card-bg: rgba(255, 255, 255, 0.7);
+  --card-border: rgba(255, 255, 255, 0.5);
+  --accent-color: #0071e3;
+  --accent-hover: #0077ed;
+  --danger-color: #ff3b30;
+  --success-color: #34c759;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg-color: #000000;
+    --text-color: #f5f5f7;
+    --text-secondary: #86868b;
+    --card-bg: rgba(28, 28, 30, 0.7);
+    --card-border: rgba(255, 255, 255, 0.1);
+    --accent-color: #2997ff;
+    --accent-hover: #148eff;
+  }
+}
+
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+body {
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  background-color: var(--bg-color);
+  color: var(--text-color);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  min-height: 100vh;
+  padding: 20px;
+  -webkit-font-smoothing: antialiased;
+}
+
+.container {
+  width: 100%;
+  max-width: 480px;
+  background: var(--card-bg);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border: 1px solid var(--card-border);
+  border-radius: 24px;
+  padding: 40px;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.08);
+  text-align: center;
+  transition: transform 0.3s ease, box-shadow 0.3s ease;
+}
+
+h1 {
+  font-size: 28px;
+  font-weight: 600;
+  margin-bottom: 8px;
+  letter-spacing: -0.5px;
+}
+
+p.subtitle {
+  color: var(--text-secondary);
+  font-size: 15px;
+  margin-bottom: 32px;
+}
+
+/* Upload Area */
+.upload-area {
+  border: 2px dashed var(--text-secondary);
+  border-radius: 16px;
+  padding: 40px 20px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  margin-bottom: 24px;
+  position: relative;
+}
+
+.upload-area:hover, .upload-area.dragover {
+  border-color: var(--accent-color);
+  background-color: rgba(0, 113, 227, 0.05);
+}
+
+.upload-area svg {
+  width: 48px;
+  height: 48px;
+  color: var(--accent-color);
+  margin-bottom: 16px;
+}
+
+.upload-area span {
+  display: block;
+  font-size: 16px;
+  font-weight: 500;
+}
+
+#fileInput {
+  display: none;
+}
+
+/* Form Groups */
+.form-group {
+  text-align: left;
+  margin-bottom: 16px;
+}
+
+.form-group label {
+  display: block;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--text-secondary);
+  margin-bottom: 8px;
+}
+
+.form-control {
+  width: 100%;
+  padding: 12px 16px;
+  font-size: 15px;
+  border: 1px solid var(--card-border);
+  border-radius: 12px;
+  background: var(--bg-color);
+  color: var(--text-color);
+  outline: none;
+  transition: border-color 0.2s ease;
+}
+
+.form-control:focus {
+  border-color: var(--accent-color);
+}
+
+/* Buttons */
+.btn {
+  display: inline-block;
+  width: 100%;
+  padding: 14px 24px;
+  font-size: 17px;
+  font-weight: 600;
+  text-align: center;
+  border-radius: 14px;
+  border: none;
+  cursor: pointer;
+  transition: background-color 0.2s ease, transform 0.1s ease;
+}
+
+.btn:active {
+  transform: scale(0.98);
+}
+
+.btn-primary {
+  background-color: var(--accent-color);
+  color: #fff;
+}
+
+.btn-primary:hover {
+  background-color: var(--accent-hover);
+}
+
+.btn-secondary {
+  background-color: var(--bg-color);
+  color: var(--text-color);
+  border: 1px solid var(--card-border);
+}
+
+.btn-secondary:hover {
+  background-color: rgba(0, 0, 0, 0.05);
+}
+
+/* Progress Bar */
+.progress-container {
+  display: none;
+  margin-top: 20px;
+}
+
+.progress-bar {
+  width: 100%;
+  height: 8px;
+  background-color: var(--bg-color);
+  border-radius: 4px;
+  overflow: hidden;
+}
+
+.progress-fill {
+  height: 100%;
+  background-color: var(--accent-color);
+  width: 0%;
+  transition: width 0.2s ease;
+}
+
+/* Success Area */
+.success-area {
+  display: none;
+  margin-top: 24px;
+}
+
+.link-input-group {
+  display: flex;
+  gap: 8px;
+  margin-top: 16px;
+}
+
+.link-input-group input {
+  flex: 1;
+  padding: 12px;
+  border-radius: 12px;
+  border: 1px solid var(--card-border);
+  background: var(--bg-color);
+  color: var(--text-color);
+}
+
+/* Stats Area */
+.stats-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+  margin-top: 24px;
+}
+
+.stat-card {
+  background: var(--bg-color);
+  padding: 20px;
+  border-radius: 16px;
+  text-align: center;
+  border: 1px solid var(--card-border);
+}
+
+.stat-value {
+  font-size: 24px;
+  font-weight: 700;
+  margin-bottom: 4px;
+}
+
+.stat-label {
+  font-size: 13px;
+  color: var(--text-secondary);
+}
+
+/* File Info on Download Page */
+.file-info {
+  margin: 32px 0;
+  text-align: left;
+  background: var(--bg-color);
+  padding: 24px;
+  border-radius: 16px;
+  border: 1px solid var(--card-border);
+}
+
+.file-info-row {
+  display: flex;
+  justify-content: space-between;
+  margin-bottom: 12px;
+  font-size: 15px;
+}
+
+.file-info-row:last-child {
+  margin-bottom: 0;
+}
+
+.file-info-label {
+  color: var(--text-secondary);
+}
+
+.file-info-value {
+  font-weight: 500;
+}
+
+.hidden {
+  display: none !important;
+}
+
+.error-message {
+  color: var(--danger-color);
+  font-size: 14px;
+  margin-top: 12px;
+  display: none;
+}

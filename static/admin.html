@@ -1,0 +1,123 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Admin - XMen Uploader</title>
+    <link rel="stylesheet" href="/style.css">
+    <style>
+        .login-form {
+            display: flex;
+            gap: 8px;
+            margin-bottom: 24px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container" id="adminContainer">
+        <h1>Admin Dashboard</h1>
+        <p class="subtitle">System statistics overview</p>
+
+        <div id="loginArea">
+            <p style="text-align: left; margin-bottom: 8px; font-size: 14px; color: var(--text-secondary);">Enter Admin Secret</p>
+            <div class="login-form">
+                <input type="password" id="secretInput" class="form-control" placeholder="Secret Key">
+                <button id="loadBtn" class="btn btn-primary" style="width: auto;">Load</button>
+            </div>
+            <div id="adminError" class="error-message"></div>
+        </div>
+
+        <div id="statsArea" class="hidden">
+            <div class="stats-grid">
+                <div class="stat-card">
+                    <div class="stat-value" id="statFiles">0</div>
+                    <div class="stat-label">Active Files</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-value" id="statDownloads">0</div>
+                    <div class="stat-label">Total Downloads</div>
+                </div>
+                <div class="stat-card" style="grid-column: span 2;">
+                    <div class="stat-value" id="statStorage">0 Bytes</div>
+                    <div class="stat-label">Total Storage Used</div>
+                </div>
+            </div>
+            
+            <button class="btn btn-secondary" style="margin-top: 24px;" onclick="logout()">Logout</button>
+        </div>
+    </div>
+
+    <script>
+        const secretInput = document.getElementById('secretInput');
+        const loadBtn = document.getElementById('loadBtn');
+        const loginArea = document.getElementById('loginArea');
+        const statsArea = document.getElementById('statsArea');
+        const adminError = document.getElementById('adminError');
+        
+        const statFiles = document.getElementById('statFiles');
+        const statDownloads = document.getElementById('statDownloads');
+        const statStorage = document.getElementById('statStorage');
+
+        function formatBytes(bytes, decimals = 2) {
+            if (!+bytes) return '0 Bytes';
+            const k = 1024;
+            const dm = decimals < 0 ? 0 : decimals;
+            const sizes = ['Bytes', 'KB', 'MB', 'GB', 'TB'];
+            const i = Math.floor(Math.log(bytes) / Math.log(k));
+            return `${parseFloat((bytes / Math.pow(k, i)).toFixed(dm))} ${sizes[i]}`;
+        }
+
+        // Auto-login if secret is in localStorage
+        const savedSecret = localStorage.getItem('adminSecret');
+        if (savedSecret) {
+            loadStats(savedSecret);
+        }
+
+        loadBtn.addEventListener('click', () => {
+            const secret = secretInput.value.trim();
+            if (!secret) return;
+            loadStats(secret);
+        });
+
+        secretInput.addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') loadBtn.click();
+        });
+
+        function loadStats(secret) {
+            adminError.style.display = 'none';
+            
+            fetch(`/api/admin/stats?secret=${encodeURIComponent(secret)}`)
+                .then(res => {
+                    if (res.status === 401) {
+                        localStorage.removeItem('adminSecret');
+                        throw new Error("Invalid Secret");
+                    }
+                    if (!res.ok) throw new Error("Failed to load stats");
+                    return res.json();
+                })
+                .then(data => {
+                    localStorage.setItem('adminSecret', secret);
+                    loginArea.classList.add('hidden');
+                    statsArea.classList.remove('hidden');
+
+                    statFiles.textContent = data.active_files || 0;
+                    statDownloads.textContent = data.total_downloads || 0;
+                    statStorage.textContent = formatBytes(data.total_size_bytes || 0);
+                })
+                .catch(err => {
+                    adminError.textContent = err.message;
+                    adminError.style.display = 'block';
+                    loginArea.classList.remove('hidden');
+                    statsArea.classList.add('hidden');
+                });
+        }
+
+        function logout() {
+            localStorage.removeItem('adminSecret');
+            loginArea.classList.remove('hidden');
+            statsArea.classList.add('hidden');
+            secretInput.value = '';
+        }
+    </script>
+</body>
+</html>
