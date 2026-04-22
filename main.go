@@ -37,8 +37,8 @@ func main() {
 		AllowedMethods: []string{"GET", "POST", "OPTIONS"},
 	}))
 
-	// Global rate limit: 100 requests per minute per IP
-	r.Use(httprate.LimitByIP(100, 1*time.Minute))
+	// Global rate limit: 60 requests per minute per IP
+	r.Use(httprate.LimitByIP(60, 1*time.Minute))
 
 	// API Routes
 	r.Route("/api", func(r chi.Router) {
@@ -56,7 +56,9 @@ func main() {
 		
 		r.Get("/download/{id}", handlers.DownloadHandler)
 		r.Get("/info/{id}", handlers.GetFileInfoHandler)
-		r.Get("/admin/stats", handlers.AdminStatsHandler)
+		
+		// Stricter rate limit for admin secret checks (prevent brute force)
+		r.With(httprate.LimitByIP(5, 1*time.Minute)).Get("/admin/stats", handlers.AdminStatsHandler)
 	})
 
 	// Frontend routes
