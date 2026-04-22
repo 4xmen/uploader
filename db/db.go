@@ -43,7 +43,10 @@ func SaveFile(f *models.File) error {
 		INSERT INTO files (id, original_name, storage_name, size, mime_type, uploaded_at, expires_at, max_downloads, download_count)
 		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
 	`
-	_, err := DB.Exec(query, f.ID, f.OriginalName, f.StorageName, f.Size, f.MimeType, f.UploadedAt, f.ExpiresAt, f.MaxDownloads, f.DownloadCount)
+	uploadedAtStr := f.UploadedAt.Format(time.RFC3339)
+	expiresAtStr := f.ExpiresAt.Format(time.RFC3339)
+
+	_, err := DB.Exec(query, f.ID, f.OriginalName, f.StorageName, f.Size, f.MimeType, uploadedAtStr, expiresAtStr, f.MaxDownloads, f.DownloadCount)
 	return err
 }
 
@@ -52,13 +55,14 @@ func GetFile(id string) (*models.File, error) {
 	row := DB.QueryRow(query, id)
 
 	f := &models.File{}
-	var uploadedAt, expiresAt time.Time
-	err := row.Scan(&f.ID, &f.OriginalName, &f.StorageName, &f.Size, &f.MimeType, &uploadedAt, &expiresAt, &f.MaxDownloads, &f.DownloadCount)
+	var uploadedAtStr, expiresAtStr string
+	err := row.Scan(&f.ID, &f.OriginalName, &f.StorageName, &f.Size, &f.MimeType, &uploadedAtStr, &expiresAtStr, &f.MaxDownloads, &f.DownloadCount)
 	if err != nil {
 		return nil, err
 	}
-	f.UploadedAt = uploadedAt
-	f.ExpiresAt = expiresAt
+	
+	f.UploadedAt, _ = time.Parse(time.RFC3339, uploadedAtStr)
+	f.ExpiresAt, _ = time.Parse(time.RFC3339, expiresAtStr)
 	return f, nil
 }
 
@@ -77,7 +81,7 @@ func DeleteFile(id string) error {
 // GetExpiredFiles returns files where expires_at is past or max_downloads > 0 and download_count >= max_downloads
 func GetExpiredFiles() ([]models.File, error) {
 	query := `SELECT id, storage_name FROM files WHERE expires_at <= ? OR (max_downloads > 0 AND download_count >= max_downloads)`
-	rows, err := DB.Query(query, time.Now())
+	rows, err := DB.Query(query, time.Now().Format(time.RFC3339))
 	if err != nil {
 		return nil, err
 	}
