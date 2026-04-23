@@ -1,7 +1,9 @@
 package main
 
 import (
+	"embed"
 	"encoding/json"
+	"io/fs"
 	"log"
 	"net/http"
 	"os"
@@ -16,6 +18,9 @@ import (
 	"xmen-uploader/db"
 	"xmen-uploader/handlers"
 )
+
+//go:embed static/*
+var staticFS embed.FS
 
 func main() {
 	// Initialize Configuration
@@ -62,17 +67,20 @@ func main() {
 	})
 
 	// Frontend routes
-	workDir, _ := os.Getwd()
 	r.Get("/f/{id}", func(w http.ResponseWriter, r *http.Request) {
-		http.ServeFile(w, r, filepath.Join(workDir, "static", "download.html"))
+		content, _ := staticFS.ReadFile("static/download.html")
+		w.Header().Set("Content-Type", "text/html")
+		w.Write(content)
 	})
 	r.Get("/admin", func(w http.ResponseWriter, r *http.Request) {
-		http.ServeFile(w, r, filepath.Join(workDir, "static", "admin.html"))
+		content, _ := staticFS.ReadFile("static/admin.html")
+		w.Header().Set("Content-Type", "text/html")
+		w.Write(content)
 	})
 
 	// Serve Static Files (CSS, JS, index.html)
-	filesDir := http.Dir(filepath.Join(workDir, "static"))
-	FileServer(r, "/", filesDir)
+	staticDir, _ := fs.Sub(staticFS, "static")
+	FileServer(r, "/", http.FS(staticDir))
 
 	// Start Server
 	log.Printf("Starting XMen Uploader on port %s", config.AppConfig.Port)
