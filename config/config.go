@@ -4,6 +4,7 @@ import (
 	"log"
 	"os"
 	"strconv"
+	"strings"
 
 	"github.com/joho/godotenv"
 )
@@ -15,6 +16,7 @@ type Config struct {
 	AdminSecret            string
 	DatabasePath           string
 	StoragePath            string
+	AllowedOrigins         []string
 }
 
 var AppConfig Config
@@ -32,6 +34,7 @@ func LoadConfig() {
 		AdminSecret:            getEnv("ADMIN_SECRET", "admin123"),
 		DatabasePath:           getEnv("DATABASE_PATH", "uploader.db"),
 		StoragePath:            getEnv("STORAGE_PATH", "./uploads"),
+		AllowedOrigins:         getEnvAsSlice("ALLOWED_ORIGINS", []string{"*"}),
 	}
 
 	// Ensure storage path exists
@@ -61,4 +64,23 @@ func getEnvAsInt64(name string, defaultVal int64) int64 {
 		return value
 	}
 	return defaultVal
+}
+
+func getEnvAsSlice(name string, defaultVal []string) []string {
+	valueStr := getEnv(name, "")
+	if valueStr == "" {
+		return defaultVal
+	}
+	parts := strings.Split(valueStr, ",")
+	var result []string
+	for _, p := range parts {
+		trimmed := strings.TrimSpace(p)
+		if trimmed != "" {
+			result = append(result, trimmed)
+		}
+	}
+	if len(result) == 0 {
+		return defaultVal
+	}
+	return result
 }

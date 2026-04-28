@@ -35,10 +35,11 @@ func main() {
 	// Initialize Router
 	r := chi.NewRouter()
 
+	r.Use(middleware.RealIP) // Extremely important for rate limiting behind a CDN
 	r.Use(middleware.Logger)
 	r.Use(middleware.Recoverer)
 	r.Use(cors.Handler(cors.Options{
-		AllowedOrigins: []string{"*"},
+		AllowedOrigins: config.AppConfig.AllowedOrigins,
 		AllowedMethods: []string{"GET", "POST", "OPTIONS"},
 	}))
 

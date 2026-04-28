@@ -3,6 +3,7 @@ package handlers
 import (
 	"database/sql"
 	"encoding/json"
+	"mime"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -52,7 +53,8 @@ func DownloadHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	w.Header().Set("Content-Disposition", "attachment; filename="+file.OriginalName)
+	cd := mime.FormatMediaType("attachment", map[string]string{"filename": file.OriginalName})
+	w.Header().Set("Content-Disposition", cd)
 	w.Header().Set("Content-Type", file.MimeType)
 	http.ServeFile(w, r, storagePath)
 }

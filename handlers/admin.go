@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"crypto/subtle"
 	"encoding/json"
 	"net/http"
 
@@ -11,7 +12,7 @@ import (
 func AdminStatsHandler(w http.ResponseWriter, r *http.Request) {
 	// Simple secret token auth
 	secret := r.URL.Query().Get("secret")
-	if secret != config.AppConfig.AdminSecret {
+	if subtle.ConstantTimeCompare([]byte(secret), []byte(config.AppConfig.AdminSecret)) != 1 {
 		http.Error(w, "Unauthorized", http.StatusUnauthorized)
 		return
 	}
