@@ -50,7 +50,8 @@ func UploadHandler(w http.ResponseWriter, r *http.Request) {
 	}
 	maxAllowedHours := config.AppConfig.MaxAllowedLifetimeDays * 24
 	if lifetimeHours > maxAllowedHours {
-		lifetimeHours = maxAllowedHours
+		sendJSONResponse(w, http.StatusBadRequest, false, "Lifetime exceeds the maximum allowed limit", nil)
+		return
 	}
 
 	expiresAt := time.Now().Add(time.Duration(lifetimeHours) * time.Hour)

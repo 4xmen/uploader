@@ -50,8 +50,8 @@
             <p class="subtitle" style="margin-bottom:16px;">Your file is ready to share.</p>
             
             <div class="link-input-group">
-                <input type="text" id="shareLink" readonly>
-                <button type="button" class="btn btn-secondary" style="width:auto;padding:12px 20px;" id="copyBtn">Copy</button>
+                <input type="text" id="fileUrl" readonly>
+                <button type="button" class="btn btn-secondary" style="width:auto;padding:12px 20px;" id="copyUrlBtn">Copy</button>
             </div>
             
             <button class="btn btn-secondary" style="margin-top:24px;" onclick="location.reload()">Upload Another</button>
@@ -67,8 +67,8 @@
         const progressFill = document.getElementById('progressFill');
         const uploadBtn = document.getElementById('uploadBtn');
         const successArea = document.getElementById('successArea');
-        const shareLink = document.getElementById('shareLink');
-        const copyBtn = document.getElementById('copyBtn');
+        const fileUrl = document.getElementById('fileUrl');
+        const copyUrlBtn = document.getElementById('copyUrlBtn');
         const errorMessage = document.getElementById('errorMessage');
         const maxSizeDisplay = document.getElementById('maxSizeDisplay');
 
@@ -78,6 +78,11 @@
             .then(data => {
                 const maxSizeMB = Math.floor(data.max_upload_size_bytes / (1024 * 1024));
                 maxSizeDisplay.textContent = `Max size: ${maxSizeMB} MB`;
+                
+                if (data.max_lifetime_days) {
+                    const maxHours = data.max_lifetime_days * 24;
+                    document.getElementById('lifetime_hours').max = maxHours;
+                }
             })
             .catch(err => console.error(err));
 
@@ -136,7 +141,9 @@
                     if (res.success) {
                         uploadForm.style.display = 'none';
                         successArea.style.display = 'block';
-                        shareLink.value = window.location.origin + '/f/' + res.file.id;
+                        const origin = window.location.origin || (window.location.protocol + '//' + window.location.host);
+                        const fileId = (res.file && res.file.id) ? res.file.id : '';
+                        fileUrl.value = origin + '/f/' + fileId;
                     } else {
                         showError(res.message);
                     }
@@ -165,13 +172,42 @@
             progressFill.style.width = '0%';
         }
 
-        copyBtn.addEventListener('click', () => {
-            shareLink.select();
-            document.execCommand('copy');
-            copyBtn.textContent = 'Copied!';
+        function showCopied() {
+            copyUrlBtn.textContent = 'Copied!';
             setTimeout(() => {
-                copyBtn.textContent = 'Copy';
+                copyUrlBtn.textContent = 'Copy';
             }, 2000);
+        }
+
+        copyUrlBtn.addEventListener('click', () => {
+            const urlToCopy = fileUrl.value;
+            
+            // Modern Clipboard API
+            if (navigator.clipboard && window.isSecureContext) {
+                navigator.clipboard.writeText(urlToCopy).then(() => {
+                    showCopied();
+                }).catch(err => {
+                    console.error('Clipboard write failed', err);
+                    fallbackCopy();
+                });
+            } else {
+                fallbackCopy();
+            }
+            
+            function fallbackCopy() {
+                fileUrl.focus();
+                fileUrl.select();
+                fileUrl.setSelectionRange(0, 99999); // Crucial for mobile devices
+                try {
+                    document.execCommand('copy');
+                    showCopied();
+                } catch (e) {
+                    console.error('execCommand copy failed', e);
+                    // Fallback visual feedback if even execCommand fails
+                    copyUrlBtn.textContent = 'Error';
+                    setTimeout(() => copyUrlBtn.textContent = 'Copy', 2000);
+                }
+            }
         });
     </script>
 </body>

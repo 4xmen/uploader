@@ -202,11 +202,14 @@ p.subtitle {
 
 .link-input-group input {
   flex: 1;
+  min-width: 0; /* Allows input to shrink properly in flex container */
   padding: 12px;
   border-radius: 12px;
   border: 1px solid var(--card-border);
   background: var(--bg-color);
   color: var(--text-color);
+  opacity: 1; /* Fix for mobile browser readonly opacity */
+  -webkit-text-fill-color: var(--text-color); /* Override default disabled/readonly text color */
 }
 
 /* Stats Area */
