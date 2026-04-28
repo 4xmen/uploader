@@ -38,6 +38,7 @@ A modern, fast, and minimal file uploader built with Go and vanilla web technolo
    ADMIN_SECRET=xmenadmin
    DATABASE_PATH=uploader.db
    STORAGE_PATH=./uploads
+   ALLOWED_ORIGINS=*
    ```
 
 4. Run the application:
