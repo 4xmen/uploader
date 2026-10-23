@@ -1,93 +1,373 @@
-#!/bin/bash
+#!/usr/bin/env bash
+set -euo pipefail
 
-# Ensure script is run as root
-if [ "$EUID" -ne 0 ]; then
-  echo "Please run as root using sudo."
-  exit
-fi
+SERVICE_NAME="xmen-uploader"
+REPO="4xmen/uploader"
+INSTALL_DIR="/opt/${SERVICE_NAME}"
+DATA_DIR="/opt/${SERVICE_NAME}/data"
+UPLOAD_DIR="${DATA_DIR}/uploads"
+ENV_DIR="/opt/${SERVICE_NAME}"
+ENV_FILE="${ENV_DIR}/.env"
+SYSTEMD_UNIT="/etc/systemd/system/${SERVICE_NAME}.service"
+TARGET_OS=""
+TARGET_ARCH=""
+ACTION="install"
 
-APP_NAME="xmen-uploader"
-APP_BIN="xmen-uploader_linux_amd64"
-INSTALL_DIR="/opt/$APP_NAME"
-USER="xmen-uploader"
-GROUP="xmen-uploader"
-
-# Check if binary exists in current directory
-if [ ! -f "$APP_BIN" ]; then
-    echo "Error: Binary $APP_BIN not found in current directory."
-    echo "Please build the project for Linux first using 'make build-linux'"
+require_cmd() {
+  if ! command -v "$1" >/dev/null 2>&1; then
+    echo "[error] Required command '$1' not found. Install it and retry." >&2
     exit 1
-fi
+  fi
+}
 
-echo "Creating user and group '$USER'..."
-groupadd -f $GROUP
-id -u $USER &>/dev/null || useradd -r -s /bin/false -g $GROUP -d $INSTALL_DIR $USER
+ensure_root() {
+  if [ "${EUID}" -ne 0 ]; then
+    if [ -f "$0" ]; then
+      exec sudo -E bash "$0" "$@"
+    else
+      echo "[error] This script must be run as root (or with sudo)." >&2
+      echo "[error] Please re-run with: sudo bash ..." >&2
+      exit 1
+    fi
+  fi
+}
 
-echo "Setting up installation directory ($INSTALL_DIR)..."
-mkdir -p $INSTALL_DIR
-mkdir -p $INSTALL_DIR/uploads
+usage() {
+  cat <<EOF
+Usage: $0 [--install|--update]
 
-echo "Copying application files..."
-cp $APP_BIN $INSTALL_DIR/
+Options:
+  --install   Install or reinstall ${SERVICE_NAME} (default)
+  --update    Update existing ${SERVICE_NAME} binary to latest release
+  -h, --help  Show this help
+EOF
+}
 
-# Create .env if it doesn't exist
-ENV_FILE="$INSTALL_DIR/.env"
-if [ ! -f "$ENV_FILE" ]; then
-    echo "Creating default .env file..."
-    cat <<EOF > $ENV_FILE
+parse_args() {
+  while [ "$#" -gt 0 ]; do
+    case "$1" in
+      --install)
+        ACTION="install"
+        ;;
+      --update)
+        ACTION="update"
+        ;;
+      -h|--help)
+        usage
+        exit 0
+        ;;
+      *)
+        echo "[error] Unknown argument: $1" >&2
+        usage
+        exit 1
+        ;;
+    esac
+    shift
+  done
+}
+
+detect_platform() {
+  local raw_os raw_arch
+  raw_os=$(uname -s | tr '[:upper:]' '[:lower:]')
+  raw_arch=$(uname -m)
+
+  case "${raw_os}" in
+    linux)
+      TARGET_OS="linux"
+      ;;
+    *)
+      echo "[error] Unsupported OS '${raw_os}'. This installer supports Linux systemd hosts (Ubuntu / Debian)." >&2
+      exit 1
+      ;;
+  esac
+
+  case "${raw_arch}" in
+    x86_64|amd64)
+      TARGET_ARCH="amd64"
+      ;;
+    *)
+      echo "[error] Unsupported CPU architecture '${raw_arch}'. Only amd64 is supported." >&2
+      exit 1
+      ;;
+  esac
+}
+
+ensure_update_target_exists() {
+  if [ "${ACTION}" = "update" ] && [ ! -x "${INSTALL_DIR}/${SERVICE_NAME}" ]; then
+    echo "[error] Update requested but ${INSTALL_DIR}/${SERVICE_NAME} is not installed." >&2
+    echo "[error] Run with --install first." >&2
+    exit 1
+  fi
+}
+
+generate_secret() {
+  if command -v openssl >/dev/null 2>&1; then
+    openssl rand -hex 24
+  elif command -v python3 >/dev/null 2>&1; then
+    python3 -c 'import secrets; print(secrets.token_hex(24))'
+  else
+    od -An -N24 -tx1 /dev/urandom 2>/dev/null | tr -d '[:space:]'
+  fi
+}
+
+is_elf_binary() {
+  local file_path="$1"
+  local magic
+  magic=$(od -An -t x1 -N4 "${file_path}" 2>/dev/null | tr -d '[:space:]')
+  [ "${magic}" = "7f454c46" ]
+}
+
+fetch_latest_asset_url() {
+  local url=""
+  local api_response=""
+
+  api_response=$(curl -fsSL \
+    -H "Accept: application/vnd.github+json" \
+    -H "User-Agent: ${SERVICE_NAME}-installer" \
+    "https://api.github.com/repos/${REPO}/releases/latest" 2>/dev/null) || true
+
+  if [ -n "${api_response}" ]; then
+    url=$(echo "${api_response}" | TARGET_OS="${TARGET_OS}" TARGET_ARCH="${TARGET_ARCH}" python3 -c '
+import json
+import re
+import sys
+import os
+
+try:
+    data = json.load(sys.stdin)
+    assets = data.get("assets") or []
+    target_os = os.environ.get("TARGET_OS", "")
+    target_arch = os.environ.get("TARGET_ARCH", "")
+    patterns = [
+        rf"{target_os}[-_.]?{target_arch}",
+        rf"{target_os}.*{target_arch}",
+        rf"{target_os}[-_.]?(x86_64|amd64|64)",
+    ]
+    for pat in patterns:
+        for asset in assets:
+            name = asset.get("name", "")
+            if re.search(pat, name, re.IGNORECASE):
+                print(asset.get("browser_download_url", ""))
+                sys.exit(0)
+except Exception:
+    pass
+sys.exit(1)
+' 2>/dev/null) || true
+  fi
+
+  if [ -z "${url}" ]; then
+    local direct_url="https://github.com/${REPO}/releases/latest/download/${SERVICE_NAME}-${TARGET_OS}-${TARGET_ARCH}.zip"
+    if curl -fsIL "${direct_url}" >/dev/null 2>&1; then
+      url="${direct_url}"
+    fi
+  fi
+
+  if [ -z "${url}" ]; then
+    echo "[error] Could not find a release asset for ${TARGET_OS}/${TARGET_ARCH}." >&2
+    exit 1
+  fi
+
+  echo "${url}"
+}
+
+download_and_extract() {
+  local asset_url="$1"
+  local workdir
+  workdir=$(mktemp -d)
+  local archive="${workdir}/release.bin"
+
+  echo "[info] Downloading ${asset_url}" >&2
+  curl -fL "${asset_url}" -o "${archive}"
+
+  echo "[info] Extracting archive" >&2
+  case "${asset_url}" in
+    *.tar.gz|*.tgz)
+      tar -xzf "${archive}" -C "${workdir}"
+      ;;
+    *.zip)
+      if command -v unzip >/dev/null 2>&1; then
+        unzip -q "${archive}" -d "${workdir}"
+      elif command -v python3 >/dev/null 2>&1; then
+        python3 -m zipfile -e "${archive}" "${workdir}"
+      else
+        require_cmd unzip
+      fi
+      ;;
+    *)
+      cp "${archive}" "${workdir}/${SERVICE_NAME}"
+      ;;
+  esac
+
+  local bin_path=""
+  local candidates
+  candidates=$(find "${workdir}" -maxdepth 5 -type f \( \
+    -name "${SERVICE_NAME}-${TARGET_OS}-${TARGET_ARCH}" -o \
+    -name "${SERVICE_NAME}" -o \
+    -name "${SERVICE_NAME}*" \
+  \) | sort)
+
+  while IFS= read -r candidate; do
+    [ -n "${candidate}" ] || continue
+    case "${candidate}" in
+      *.txt|*.md|*.sha256|*.sha512|*.sum|*.asc|*.sig|*.bin|*.zip|*.tar.gz|*.tgz)
+        continue
+        ;;
+    esac
+    if is_elf_binary "${candidate}"; then
+      bin_path="${candidate}"
+      break
+    fi
+  done <<EOF
+${candidates}
+EOF
+
+  if [ -z "${bin_path}" ]; then
+    echo "[error] Unable to locate ${SERVICE_NAME} binary in downloaded asset." >&2
+    rm -rf "${workdir}"
+    exit 1
+  fi
+  chmod +x "${bin_path}"
+
+  echo "${bin_path}"
+}
+
+setup_user_and_dirs() {
+  if ! getent group "${SERVICE_NAME}" >/dev/null 2>&1 && ! id -g "${SERVICE_NAME}" >/dev/null 2>&1; then
+    groupadd --system "${SERVICE_NAME}" 2>/dev/null || true
+  fi
+
+  if ! id -u "${SERVICE_NAME}" >/dev/null 2>&1; then
+    local nologin_shell="/usr/sbin/nologin"
+    if [ ! -x "${nologin_shell}" ]; then
+      nologin_shell="/sbin/nologin"
+      if [ ! -x "${nologin_shell}" ]; then
+        nologin_shell="/bin/false"
+      fi
+    fi
+    useradd --system --no-create-home --shell "${nologin_shell}" -g "${SERVICE_NAME}" "${SERVICE_NAME}" 2>/dev/null || \
+    useradd --system --no-create-home --shell "${nologin_shell}" "${SERVICE_NAME}" 2>/dev/null || \
+    useradd --system "${SERVICE_NAME}"
+  fi
+
+  install -d -m 755 "${INSTALL_DIR}" "${DATA_DIR}" "${UPLOAD_DIR}" "${ENV_DIR}"
+  chown -R "${SERVICE_NAME}:${SERVICE_NAME}" "${DATA_DIR}" "${UPLOAD_DIR}"
+}
+
+install_binary() {
+  local src_bin="$1"
+  install -m 755 "${src_bin}" "${INSTALL_DIR}/${SERVICE_NAME}"
+  chown "root:root" "${INSTALL_DIR}/${SERVICE_NAME}"
+}
+
+write_env_file() {
+  if [ ! -f "${ENV_FILE}" ]; then
+    local generated_admin_secret
+    generated_admin_secret=$(generate_secret)
+    cat >"${ENV_FILE}" <<EOF
 PORT=8089
 MAX_UPLOAD_SIZE_MB=50
-MAX_ALLOWED_LIFETIME_DAYS=1
-ADMIN_SECRET=13651385
-DATABASE_PATH=uploader.db
-STORAGE_PATH=./uploads
+MAX_ALLOWED_LIFETIME_DAYS=7
+ADMIN_SECRET=${generated_admin_secret}
+DATABASE_PATH=${DATA_DIR}/uploader.db
+STORAGE_PATH=${UPLOAD_DIR}
+ALLOWED_ORIGINS=*
+TRUST_PROXY=false
 EOF
-else
-    echo ".env file already exists. Skipping creation."
-fi
+    chmod 640 "${ENV_FILE}"
+    chown "root:${SERVICE_NAME}" "${ENV_FILE}" 2>/dev/null || chown "root:root" "${ENV_FILE}"
+    echo "[info] Generated random admin secret. Saved in ${ENV_FILE}"
+  fi
+}
 
-echo "Setting ownership and permissions..."
-chown -R $USER:$GROUP $INSTALL_DIR
-chmod +x $INSTALL_DIR/$APP_BIN
-# Ensure only the app user can read the .env file (for security)
-chmod 600 $ENV_FILE
-
-echo "Creating systemd service..."
-SERVICE_FILE="/etc/systemd/system/$APP_NAME.service"
-cat <<EOF > $SERVICE_FILE
+write_systemd_unit() {
+  if [ -f "${SYSTEMD_UNIT}" ]; then
+    echo "[info] Systemd unit ${SYSTEMD_UNIT} already exists, preserving configuration."
+    return
+  fi
+  cat >"${SYSTEMD_UNIT}" <<EOF
 [Unit]
-Description=XMen Uploader Service
+Description=XMen Uploader service
 After=network.target
 
 [Service]
 Type=simple
-User=$USER
-Group=$GROUP
-WorkingDirectory=$INSTALL_DIR
-ExecStart=$INSTALL_DIR/$APP_BIN
+User=${SERVICE_NAME}
+Group=${SERVICE_NAME}
+WorkingDirectory=${INSTALL_DIR}
+EnvironmentFile=${ENV_FILE}
+ExecStart=${INSTALL_DIR}/${SERVICE_NAME}
 Restart=on-failure
-RestartSec=5
+RestartSec=3
 LimitNOFILE=65535
 
 [Install]
 WantedBy=multi-user.target
 EOF
+  systemctl daemon-reload
+}
 
-echo "Reloading systemd daemon..."
-systemctl daemon-reload
+start_service() {
+  touch "${DATA_DIR}/uploader.db"
+  chown -R "${SERVICE_NAME}:${SERVICE_NAME}" "${DATA_DIR}" "${UPLOAD_DIR}"
+  systemctl enable "${SERVICE_NAME}"
+  if systemctl is-active --quiet "${SERVICE_NAME}"; then
+    systemctl restart "${SERVICE_NAME}"
+  else
+    systemctl start "${SERVICE_NAME}"
+  fi
+}
 
-echo "Enabling and starting $APP_NAME service..."
-systemctl enable $APP_NAME
-systemctl restart $APP_NAME
+print_summary() {
+  local port="8089"
+  local admin_secret=""
+  if [ -f "${ENV_FILE}" ]; then
+    port=$(grep -E '^PORT=' "${ENV_FILE}" | tail -n1 | cut -d'=' -f2- || echo "8089")
+    admin_secret=$(grep -E '^ADMIN_SECRET=' "${ENV_FILE}" | tail -n1 | cut -d'=' -f2- || echo "")
+  fi
+  echo "============================================="
+  echo "[info] ${SERVICE_NAME} installed and started successfully!"
+  echo "[info] Web interface: http://<server-ip>:${port}"
+  echo "[info] Admin dashboard: http://<server-ip>:${port}/admin"
+  if [ -n "${admin_secret}" ]; then
+    echo "[info] Admin secret: ${admin_secret}"
+  fi
+  echo "[info] Config file: ${ENV_FILE}"
+  echo "[info] Service status: systemctl status ${SERVICE_NAME}"
+  echo "[info] View logs: journalctl -fu ${SERVICE_NAME}"
+  echo "============================================="
+}
 
-echo "======================================"
-echo "Installation complete!"
-echo "The application is installed in $INSTALL_DIR"
-echo "It runs as the restricted user: $USER"
-echo ""
-echo "You can check the status using:"
-echo "sudo systemctl status $APP_NAME"
-echo ""
-echo "You can view logs using:"
-echo "sudo journalctl -fu $APP_NAME"
-echo "======================================"
+main() {
+  parse_args "$@"
+  ensure_root "$@"
+  require_cmd curl
+  require_cmd systemctl
+  require_cmd tar
+  detect_platform
+  ensure_update_target_exists
+
+  echo "[info] Action: ${ACTION}"
+  echo "[info] Platform: ${TARGET_OS}/${TARGET_ARCH}"
+
+  local asset_url
+  asset_url=$(fetch_latest_asset_url)
+  local bin_path
+  bin_path=$(download_and_extract "${asset_url}")
+
+  if [ "${ACTION}" = "update" ]; then
+    echo "[info] Updating binary only — keeping existing configuration and data."
+    install_binary "${bin_path}"
+    systemctl daemon-reload
+    start_service
+    print_summary
+  else
+    setup_user_and_dirs
+    install_binary "${bin_path}"
+    write_env_file
+    write_systemd_unit
+    start_service
+    print_summary
+  fi
+}
+
+main "$@"
