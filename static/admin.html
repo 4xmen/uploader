@@ -2,122 +2,186 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Admin - XMen Uploader</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+    <meta name="color-scheme" content="light dark">
+    <meta name="theme-color" content="#eceef3" media="(prefers-color-scheme: light)">
+    <meta name="theme-color" content="#0b0c10" media="(prefers-color-scheme: dark)">
+    <meta name="robots" content="noindex">
+    <title>Admin — XMen Uploader</title>
+    <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='9' fill='%230071e3'/%3E%3Cpath d='M16 8v12m0 0 5-5m-5 5-5-5M10 24h12' stroke='white' stroke-width='2.4' stroke-linecap='round' stroke-linejoin='round' fill='none'/%3E%3C/svg%3E">
     <link rel="stylesheet" href="/style.css">
-    <style>
-        .login-form {
-            display: flex;
-            gap: 8px;
-            margin-bottom: 24px;
-        }
-    </style>
 </head>
 <body>
-    <div class="container" id="adminContainer">
-        <h1>Admin Dashboard</h1>
-        <p class="subtitle">System statistics overview</p>
+    <main class="stage">
+        <header class="topbar">
+            <a href="/" class="brand">
+                <span class="brand-icon">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M12 3 4 6.5v5c0 4.5 3.2 8.3 8 9.5 4.8-1.2 8-5 8-9.5v-5Z"/>
+                        <path d="M9.5 12l2 2 3.5-3.5"/>
+                    </svg>
+                </span>
+                <span class="brand-title">Admin Dashboard</span>
+            </a>
+            <a href="/" class="nav-link">Uploader</a>
+        </header>
 
-        <div id="loginArea">
-            <p style="text-align: left; margin-bottom: 8px; font-size: 14px; color: var(--text-secondary);">Enter Admin Secret</p>
-            <div class="login-form">
-                <input type="password" id="secretInput" class="form-control" placeholder="Secret Key">
-                <button id="loadBtn" class="btn btn-primary" style="width: auto;">Load</button>
+        <section class="card" id="loginCard">
+            <div class="card-header">
+                <h1 class="card-title">Authenticate</h1>
+                <p class="card-subtitle">Enter admin secret key to view statistics.</p>
             </div>
-            <div id="adminError" class="error-message"></div>
-        </div>
 
-        <div id="statsArea" class="hidden">
+            <form id="loginForm" style="display: flex; flex-direction: column; gap: 14px;">
+                <input type="password" id="secretInput" class="input" placeholder="Secret key" autocomplete="current-password" spellcheck="false" required>
+                <div id="loginNoticeWrap"></div>
+                <button type="submit" class="btn btn-primary" id="loginBtn">Unlock dashboard</button>
+            </form>
+        </section>
+
+        <section class="card" id="statsCard" hidden>
+            <div class="card-header">
+                <h1 class="card-title">System stats</h1>
+                <p class="card-subtitle" id="statsUpdated">—</p>
+            </div>
+
             <div class="stats-grid">
-                <div class="stat-card">
-                    <div class="stat-value" id="statFiles">0</div>
-                    <div class="stat-label">Active Files</div>
+                <div class="stat-box">
+                    <span class="stat-number" id="statFiles">0</span>
+                    <span class="stat-label">Active files</span>
                 </div>
-                <div class="stat-card">
-                    <div class="stat-value" id="statDownloads">0</div>
-                    <div class="stat-label">Total Downloads</div>
+                <div class="stat-box">
+                    <span class="stat-number" id="statDownloads">0</span>
+                    <span class="stat-label">Total downloads</span>
                 </div>
-                <div class="stat-card" style="grid-column: span 2;">
-                    <div class="stat-value" id="statStorage">0 Bytes</div>
-                    <div class="stat-label">Total Storage Used</div>
+                <div class="stat-box span-2">
+                    <span class="stat-number" id="statStorage">0 Bytes</span>
+                    <span class="stat-label">Storage in use</span>
                 </div>
             </div>
-            
-            <button class="btn btn-secondary" style="margin-top: 24px;" onclick="logout()">Logout</button>
-        </div>
-    </div>
 
+            <div style="display: flex; gap: 10px;">
+                <button type="button" class="btn btn-primary" id="refreshBtn">Refresh stats</button>
+                <button type="button" class="btn btn-secondary" id="logoutBtn">Sign out</button>
+            </div>
+        </section>
+    </main>
+
+    <div class="toasts" id="toasts"></div>
+
+    <script src="/app.js"></script>
     <script>
+    (() => {
+        'use strict';
+
+        const { fmtBytes, toast, ICON_WARN } = window.App;
+
+        const loginCard = document.getElementById('loginCard');
+        const statsCard = document.getElementById('statsCard');
+        const loginForm = document.getElementById('loginForm');
         const secretInput = document.getElementById('secretInput');
-        const loadBtn = document.getElementById('loadBtn');
-        const loginArea = document.getElementById('loginArea');
-        const statsArea = document.getElementById('statsArea');
-        const adminError = document.getElementById('adminError');
-        
+        const loginNoticeWrap = document.getElementById('loginNoticeWrap');
+        const loginBtn = document.getElementById('loginBtn');
+        const refreshBtn = document.getElementById('refreshBtn');
+        const logoutBtn = document.getElementById('logoutBtn');
+
         const statFiles = document.getElementById('statFiles');
         const statDownloads = document.getElementById('statDownloads');
         const statStorage = document.getElementById('statStorage');
+        const statsUpdated = document.getElementById('statsUpdated');
 
-        function formatBytes(bytes, decimals = 2) {
-            if (!+bytes) return '0 Bytes';
-            const k = 1024;
-            const dm = decimals < 0 ? 0 : decimals;
-            const sizes = ['Bytes', 'KB', 'MB', 'GB', 'TB'];
-            const i = Math.floor(Math.log(bytes) / Math.log(k));
-            return `${parseFloat((bytes / Math.pow(k, i)).toFixed(dm))} ${sizes[i]}`;
+        const STORAGE_KEY = 'admin_secret';
+
+        function showNotice(msg) {
+            loginNoticeWrap.innerHTML = '';
+            if (!msg) return;
+            const el = document.createElement('div');
+            el.className = 'notice';
+            el.innerHTML = ICON_WARN + '<span></span>';
+            el.querySelector('span').textContent = msg;
+            loginNoticeWrap.appendChild(el);
         }
 
-        // Auto-login if secret is in localStorage
-        const savedSecret = localStorage.getItem('adminSecret');
-        if (savedSecret) {
-            loadStats(savedSecret);
+        function animateNumber(element, target, formatter) {
+            const startVal = Number(element.dataset.val || 0);
+            element.dataset.val = String(target);
+            if (startVal === target) {
+                element.textContent = formatter(target);
+                return;
+            }
+            const startTime = performance.now();
+            const duration = 400;
+            function step(now) {
+                const elapsed = Math.min((now - startTime) / duration, 1);
+                const current = Math.round(startVal + (target - startVal) * elapsed);
+                element.textContent = formatter(current);
+                if (elapsed < 1) requestAnimationFrame(step);
+            }
+            requestAnimationFrame(step);
         }
 
-        loadBtn.addEventListener('click', () => {
-            const secret = secretInput.value.trim();
-            if (!secret) return;
-            loadStats(secret);
+        async function fetchStats(key) {
+            loginBtn.disabled = true;
+            refreshBtn.disabled = true;
+            showNotice('');
+
+            try {
+                const res = await fetch(`/api/admin/stats?secret=${encodeURIComponent(key)}`);
+                if (res.status === 401) {
+                    localStorage.removeItem(STORAGE_KEY);
+                    loginCard.hidden = false;
+                    statsCard.hidden = true;
+                    showNotice('Invalid admin secret.');
+                    return;
+                }
+                if (!res.ok) {
+                    throw new Error(`Server returned status ${res.status}`);
+                }
+
+                const data = await res.json();
+                localStorage.setItem(STORAGE_KEY, key);
+
+                animateNumber(statFiles, data.active_files || 0, n => String(n));
+                animateNumber(statDownloads, data.total_downloads || 0, n => String(n));
+                animateNumber(statStorage, data.total_size_bytes || 0, n => fmtBytes(n));
+
+                statsUpdated.textContent = `Updated at ${new Date().toLocaleTimeString()}`;
+                loginCard.hidden = true;
+                statsCard.hidden = false;
+            } catch (err) {
+                showNotice('Failed to connect to server. Check connection.');
+            } finally {
+                loginBtn.disabled = false;
+                refreshBtn.disabled = false;
+            }
+        }
+
+        loginForm.addEventListener('submit', (e) => {
+            e.preventDefault();
+            const key = secretInput.value.trim();
+            if (!key) return showNotice('Please enter admin secret.');
+            fetchStats(key);
         });
 
-        secretInput.addEventListener('keypress', (e) => {
-            if (e.key === 'Enter') loadBtn.click();
+        refreshBtn.addEventListener('click', () => {
+            const key = localStorage.getItem(STORAGE_KEY);
+            if (key) fetchStats(key);
         });
 
-        function loadStats(secret) {
-            adminError.style.display = 'none';
-            
-            fetch(`/api/admin/stats?secret=${encodeURIComponent(secret)}`)
-                .then(res => {
-                    if (res.status === 401) {
-                        localStorage.removeItem('adminSecret');
-                        throw new Error("Invalid Secret");
-                    }
-                    if (!res.ok) throw new Error("Failed to load stats");
-                    return res.json();
-                })
-                .then(data => {
-                    localStorage.setItem('adminSecret', secret);
-                    loginArea.classList.add('hidden');
-                    statsArea.classList.remove('hidden');
-
-                    statFiles.textContent = data.active_files || 0;
-                    statDownloads.textContent = data.total_downloads || 0;
-                    statStorage.textContent = formatBytes(data.total_size_bytes || 0);
-                })
-                .catch(err => {
-                    adminError.textContent = err.message;
-                    adminError.style.display = 'block';
-                    loginArea.classList.remove('hidden');
-                    statsArea.classList.add('hidden');
-                });
-        }
-
-        function logout() {
-            localStorage.removeItem('adminSecret');
-            loginArea.classList.remove('hidden');
-            statsArea.classList.add('hidden');
+        logoutBtn.addEventListener('click', () => {
+            localStorage.removeItem(STORAGE_KEY);
             secretInput.value = '';
+            statsCard.hidden = true;
+            loginCard.hidden = false;
+            toast('Signed out');
+        });
+
+        const existingKey = localStorage.getItem(STORAGE_KEY);
+        if (existingKey) {
+            secretInput.value = existingKey;
+            fetchStats(existingKey);
         }
+    })();
     </script>
 </body>
 </html>

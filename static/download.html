@@ -2,113 +2,233 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Download File - XMen Uploader</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+    <meta name="color-scheme" content="light dark">
+    <meta name="theme-color" content="#eceef3" media="(prefers-color-scheme: light)">
+    <meta name="theme-color" content="#0b0c10" media="(prefers-color-scheme: dark)">
+    <meta name="robots" content="noindex">
+    <title>Shared file — XMen Uploader</title>
+    <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='9' fill='%230071e3'/%3E%3Cpath d='M16 8v12m0 0 5-5m-5 5-5-5M10 24h12' stroke='white' stroke-width='2.4' stroke-linecap='round' stroke-linejoin='round' fill='none'/%3E%3C/svg%3E">
     <link rel="stylesheet" href="/style.css">
 </head>
 <body>
-    <div class="container" id="downloadContainer">
-        <h1>Download File</h1>
-        <p class="subtitle">Your file is ready to download securely.</p>
+    <main class="stage">
+        <header class="topbar">
+            <a href="/" class="brand">
+                <span class="brand-icon">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M12 4v11m0 0 4-4m-4 4-4-4M4 19h16"/>
+                    </svg>
+                </span>
+                <span class="brand-title">Shared File</span>
+            </a>
+            <a href="/" class="nav-link">Send yours</a>
+        </header>
 
-        <div id="loadingIndicator">
-            <p>Loading file info...</p>
-        </div>
+        <section class="card" id="loadingCard">
+            <div class="card-header">
+                <h1 class="card-title">Checking link…</h1>
+                <p class="card-subtitle">Connecting to server.</p>
+            </div>
+        </section>
 
-        <div id="fileError" class="hidden">
-            <svg xmlns="http://www.w3.org/2000/svg" style="width:48px;height:48px;color:var(--danger-color);margin:0 auto 16px;" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
-            </svg>
-            <h2 id="errorTitle">File Unavailable</h2>
-            <p class="subtitle" id="errorMessageDesc">This file might have expired or reached its download limit.</p>
-        </div>
+        <section class="card" id="errorCard" hidden>
+            <div class="card-header">
+                <h1 class="card-title" id="errorTitle">Link unavailable</h1>
+                <p class="card-subtitle" id="errorMessage">This file has expired or was removed.</p>
+            </div>
+            <div style="display: flex; gap: 10px;">
+                <a href="/" class="btn btn-primary">Send a file</a>
+                <button type="button" class="btn btn-secondary" id="retryBtn">Retry</button>
+            </div>
+        </section>
 
-        <div id="fileDetails" class="hidden">
-            <div class="file-info">
-                <div class="file-info-row">
-                    <span class="file-info-label">Name</span>
-                    <span class="file-info-value" id="dispName">-</span>
-                </div>
-                <div class="file-info-row">
-                    <span class="file-info-label">Size</span>
-                    <span class="file-info-value" id="dispSize">-</span>
-                </div>
-                <div class="file-info-row">
-                    <span class="file-info-label">Expires</span>
-                    <span class="file-info-value" id="dispExpires">-</span>
-                </div>
-                <div class="file-info-row" id="downloadsRow">
-                    <span class="file-info-label">Downloads</span>
-                    <span class="file-info-value" id="dispDownloads">-</span>
+        <section class="card" id="fileCard" hidden>
+            <div class="card-header">
+                <h1 class="card-title">Ready to download</h1>
+                <p class="card-subtitle">Direct download from server.</p>
+            </div>
+
+            <div class="file-pill">
+                <div class="file-icon" id="fileExt">FILE</div>
+                <div class="file-meta">
+                    <span class="file-name" id="fileName"></span>
+                    <span class="file-size" id="fileSize"></span>
                 </div>
             </div>
 
-            <a href="#" id="downloadLink" class="btn btn-primary" download>
-                Download Now
-            </a>
-            
-            <a href="/" class="btn btn-secondary" style="margin-top:16px;">
-                Upload a File
-            </a>
-        </div>
-    </div>
+            <div class="info-grid">
+                <div class="info-row">
+                    <span class="info-label">Expires in</span>
+                    <span class="info-value" id="fileExpiry">—</span>
+                </div>
+                <div class="info-row">
+                    <span class="info-label">Downloads remaining</span>
+                    <span class="info-value" id="fileDownloads">—</span>
+                </div>
+            </div>
 
+            <div id="noticeWrap"></div>
+
+            <div style="display: flex; flex-direction: column; gap: 10px;">
+                <button type="button" class="btn btn-primary" id="downloadBtn">Download file</button>
+                <button type="button" class="btn btn-secondary" id="copyLinkBtn">Copy link</button>
+            </div>
+        </section>
+    </main>
+
+    <div class="toasts" id="toasts"></div>
+
+    <script src="/app.js"></script>
     <script>
-        const fileId = window.location.pathname.split('/').pop();
-        const loadingIndicator = document.getElementById('loadingIndicator');
-        const fileError = document.getElementById('fileError');
-        const fileDetails = document.getElementById('fileDetails');
-        const dispName = document.getElementById('dispName');
-        const dispSize = document.getElementById('dispSize');
-        const dispExpires = document.getElementById('dispExpires');
-        const dispDownloads = document.getElementById('dispDownloads');
-        const downloadsRow = document.getElementById('downloadsRow');
-        const downloadLink = document.getElementById('downloadLink');
+    (() => {
+        'use strict';
 
-        function formatBytes(bytes, decimals = 2) {
-            if (!+bytes) return '0 Bytes';
-            const k = 1024;
-            const dm = decimals < 0 ? 0 : decimals;
-            const sizes = ['Bytes', 'KB', 'MB', 'GB', 'TB'];
-            const i = Math.floor(Math.log(bytes) / Math.log(k));
-            return `${parseFloat((bytes / Math.pow(k, i)).toFixed(dm))} ${sizes[i]}`;
+        const { fmtBytes, plural, toast, copyText, ICON_WARN } = window.App;
+
+        const pathParts = window.location.pathname.split('/').filter(Boolean);
+        const fileId = decodeURIComponent(pathParts[pathParts.length - 1] || '');
+        const INFO_URL = `/api/info/${encodeURIComponent(fileId)}`;
+        const DOWNLOAD_URL = `/api/download/${encodeURIComponent(fileId)}`;
+
+        const loadingCard = document.getElementById('loadingCard');
+        const errorCard = document.getElementById('errorCard');
+        const fileCard = document.getElementById('fileCard');
+        const errorTitle = document.getElementById('errorTitle');
+        const errorMessage = document.getElementById('errorMessage');
+        const retryBtn = document.getElementById('retryBtn');
+
+        const fileExt = document.getElementById('fileExt');
+        const fileName = document.getElementById('fileName');
+        const fileSize = document.getElementById('fileSize');
+        const fileExpiry = document.getElementById('fileExpiry');
+        const fileDownloads = document.getElementById('fileDownloads');
+        const noticeWrap = document.getElementById('noticeWrap');
+        const downloadBtn = document.getElementById('downloadBtn');
+        const copyLinkBtn = document.getElementById('copyLinkBtn');
+
+        let fileData = null;
+        let countdownTimer = null;
+
+        function showView(view) {
+            loadingCard.hidden = view !== 'loading';
+            errorCard.hidden = view !== 'error';
+            fileCard.hidden = view !== 'file';
         }
 
-        // Fetch file info
-        fetch(`/api/info/${fileId}`)
-            .then(res => {
-                if (!res.ok) throw new Error('File not found or expired');
-                return res.json();
-            })
-            .then(data => {
-                loadingIndicator.classList.add('hidden');
-                fileDetails.classList.remove('hidden');
+        function showError(title, message) {
+            clearInterval(countdownTimer);
+            errorTitle.textContent = title;
+            errorMessage.textContent = message;
+            showView('error');
+        }
 
-                dispName.textContent = data.original_name;
-                dispSize.textContent = formatBytes(data.size);
-                
-                const expiresDate = new Date(data.expires_at);
-                dispExpires.textContent = expiresDate.toLocaleString();
+        function formatRemaining(ms) {
+            if (ms <= 0) return 'Expired';
+            const totalSec = Math.floor(ms / 1000);
+            if (totalSec < 60) return `${totalSec}s`;
+            const min = Math.floor(totalSec / 60);
+            if (min < 60) return `${min}m ${totalSec % 60}s`;
+            const hours = Math.floor(min / 60);
+            if (hours < 24) return `${hours}h ${min % 60}m`;
+            const days = Math.floor(hours / 24);
+            return `${days}d ${hours % 24}h`;
+        }
 
-                if (data.max_downloads > 0) {
-                    dispDownloads.textContent = `${data.download_count} / ${data.max_downloads}`;
-                } else {
-                    downloadsRow.classList.add('hidden');
+        function startCountdown() {
+            clearInterval(countdownTimer);
+            const expiresAtMs = new Date(fileData.expires_at).getTime();
+            function tick() {
+                const diff = expiresAtMs - Date.now();
+                if (diff <= 0) {
+                    clearInterval(countdownTimer);
+                    fileExpiry.textContent = 'Expired';
+                    downloadBtn.disabled = true;
+                    showError('Link expired', 'This link has reached its expiration time.');
+                    return;
                 }
+                fileExpiry.textContent = formatRemaining(diff);
+            }
+            tick();
+            countdownTimer = setInterval(tick, 1000);
+        }
 
-                downloadLink.href = `/api/download/${fileId}`;
-            })
-            .catch(err => {
-                loadingIndicator.classList.add('hidden');
-                fileError.classList.remove('hidden');
-            });
+        function renderFile() {
+            fileName.textContent = fileData.original_name;
+            fileSize.textContent = fmtBytes(fileData.size);
+            const extMatch = /\.([a-zA-Z0-9]{1,6})$/.exec(fileData.original_name);
+            fileExt.textContent = extMatch ? extMatch[1].toUpperCase() : 'FILE';
 
-        downloadLink.addEventListener('click', () => {
-            // Give it a moment to trigger download, then refresh stats
-            setTimeout(() => {
-                location.reload();
-            }, 1000);
+            if (!fileData.max_downloads) {
+                fileDownloads.textContent = 'Unlimited';
+            } else {
+                const remaining = Math.max(0, fileData.max_downloads - fileData.download_count);
+                fileDownloads.textContent = remaining === 0 ? 'None left' : `${remaining} of ${fileData.max_downloads} left`;
+                if (remaining === 0) {
+                    downloadBtn.disabled = true;
+                    downloadBtn.textContent = 'Download limit reached';
+                }
+            }
+
+            startCountdown();
+            showView('file');
+        }
+
+        async function fetchInfo() {
+            showView('loading');
+            try {
+                const res = await fetch(INFO_URL, { cache: 'no-store' });
+                if (res.status === 404) {
+                    return showError('File not found', 'This file does not exist or has expired.');
+                }
+                if (res.status === 410) {
+                    return showError('No downloads left', 'All available downloads for this file have been used.');
+                }
+                if (!res.ok) {
+                    throw new Error(`Server returned ${res.status}`);
+                }
+                fileData = await res.json();
+                renderFile();
+            } catch (_) {
+                showError('Network error', 'Could not retrieve file information.');
+            }
+        }
+
+        downloadBtn.addEventListener('click', () => {
+            if (!fileData) return;
+            toast('Starting download…');
+
+            const link = document.createElement('a');
+            link.href = DOWNLOAD_URL;
+            link.download = fileData.original_name || 'download';
+            document.body.appendChild(link);
+            link.click();
+            link.remove();
+
+            setTimeout(async () => {
+                try {
+                    const res = await fetch(INFO_URL, { cache: 'no-store' });
+                    if (res.ok) {
+                        fileData = await res.json();
+                        renderFile();
+                    }
+                } catch (_) {}
+            }, 1200);
         });
+
+        copyLinkBtn.addEventListener('click', async () => {
+            const ok = await copyText(window.location.href);
+            if (ok) {
+                toast('Link copied to clipboard');
+            } else {
+                toast('Failed to copy', 'warn');
+            }
+        });
+
+        retryBtn.addEventListener('click', fetchInfo);
+
+        fetchInfo();
+    })();
     </script>
 </body>
 </html>

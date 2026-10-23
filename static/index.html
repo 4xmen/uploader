@@ -2,213 +2,425 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+    <meta name="color-scheme" content="light dark">
+    <meta name="theme-color" content="#eceef3" media="(prefers-color-scheme: light)">
+    <meta name="theme-color" content="#0b0c10" media="(prefers-color-scheme: dark)">
     <title>XMen Uploader</title>
+    <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='9' fill='%230071e3'/%3E%3Cpath d='M16 8v12m0 0 5-5m-5 5-5-5M10 24h12' stroke='white' stroke-width='2.4' stroke-linecap='round' stroke-linejoin='round' fill='none'/%3E%3C/svg%3E">
     <link rel="stylesheet" href="/style.css">
 </head>
 <body>
-    <div class="container" id="uploadContainer">
-        <h1>XMen Uploader</h1>
-        <p class="subtitle" id="mainSubtitle">Secure, fast, and minimal file sharing.</p>
+    <main class="stage">
+        <header class="topbar">
+            <a href="/" class="brand">
+                <span class="brand-icon">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M12 16V4m0 0 4.5 4.5M12 4 7.5 8.5"/>
+                        <path d="M4 15v3.5A2.5 2.5 0 0 0 6.5 21h11a2.5 2.5 0 0 0 2.5-2.5V15"/>
+                    </svg>
+                </span>
+                <span class="brand-title">XMen Uploader</span>
+            </a>
+            <a href="/admin" class="nav-link">Admin</a>
+        </header>
 
-        <form id="uploadForm">
-            <div class="upload-area" id="dropZone">
-                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5m-13.5-9L12 3m0 0l4.5 4.5M12 3v13.5" />
-                </svg>
-                <span id="fileNameDisplay">Drag & drop your file here<br>or click to browse</span>
-                <div id="maxSizeDisplay" style="font-size: 12px; color: var(--text-secondary); margin-top: 8px;"></div>
-                <input type="file" id="fileInput" name="file" required>
+        <section class="card" id="uploadCard">
+            <div class="card-header">
+                <h1 class="card-title">Send a file</h1>
+                <p class="card-subtitle">Encrypted and self-expiring link.</p>
             </div>
 
-            <div class="form-group">
-                <label for="max_downloads">Max Downloads (0 for unlimited)</label>
-                <input type="number" id="max_downloads" name="max_downloads" class="form-control" value="0" min="0">
+            <div class="dropzone" id="dropzone" role="button" tabindex="0" aria-label="Choose a file or drop one here">
+                <div class="dropzone-icon">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M12 16.5V4m0 0 4.5 4.5M12 4 7.5 8.5"/>
+                        <path d="M4 15v3.5A2.5 2.5 0 0 0 6.5 21h11a2.5 2.5 0 0 0 2.5-2.5V15"/>
+                    </svg>
+                </div>
+                <span class="dropzone-title">Drop your file here</span>
+                <span class="dropzone-hint" id="dropzoneHint">or click to browse</span>
             </div>
 
-            <div class="form-group">
-                <label for="lifetime_hours">File Lifetime (Hours)</label>
-                <input type="number" id="lifetime_hours" name="lifetime_hours" class="form-control" value="24" min="1" max="168">
+            <div class="file-pill" id="filePill" hidden>
+                <div class="file-icon" id="fileExt">FILE</div>
+                <div class="file-meta">
+                    <span class="file-name" id="fileName"></span>
+                    <span class="file-size" id="fileSize"></span>
+                </div>
+                <button type="button" class="btn-icon" id="clearFileBtn" aria-label="Remove selected file">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round">
+                        <path d="M6 6l12 12M18 6 6 18"/>
+                    </svg>
+                </button>
             </div>
 
-            <div class="error-message" id="errorMessage"></div>
+            <div class="options-group">
+                <div class="option-row">
+                    <div class="option-label-bar">
+                        <span class="option-label">Expires in</span>
+                        <span class="option-subtext" id="expirySubtext">24 hours</span>
+                    </div>
+                    <div class="segmented" id="expirySegmented" role="group" aria-label="Expiration duration"></div>
+                </div>
 
-            <button type="submit" class="btn btn-primary" id="uploadBtn">Upload File</button>
+                <div class="option-row">
+                    <div class="option-label-bar">
+                        <span class="option-label">Download limit</span>
+                        <span class="option-subtext">0 for unlimited</span>
+                    </div>
+                    <div class="stepper" role="group" aria-label="Download limit">
+                        <button type="button" id="dlDown" aria-label="Decrease downloads">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M5 12h14"/></svg>
+                        </button>
+                        <span class="stepper-value" id="dlValue">Unlimited</span>
+                        <button type="button" id="dlUp" aria-label="Increase downloads">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>
+                        </button>
+                    </div>
+                </div>
+            </div>
 
-            <div class="progress-container" id="progressContainer">
+            <div class="progress-container" id="progressWrap" hidden>
                 <div class="progress-bar">
                     <div class="progress-fill" id="progressFill"></div>
                 </div>
+                <div class="progress-info">
+                    <span id="progressLabel">Uploading…</span>
+                    <span id="progressPct">0%</span>
+                </div>
             </div>
-        </form>
 
-        <div class="success-area" id="successArea">
-            <svg xmlns="http://www.w3.org/2000/svg" style="width:48px;height:48px;color:var(--success-color);margin:0 auto 16px;" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
-            </svg>
-            <h2>Upload Successful!</h2>
-            <p class="subtitle" style="margin-bottom:16px;">Your file is ready to share.</p>
-            
-            <div class="link-input-group">
-                <input type="text" id="fileUrl" readonly>
-                <button type="button" class="btn btn-secondary" style="width:auto;padding:12px 20px;" id="copyUrlBtn">Copy</button>
+            <div id="noticeWrap"></div>
+
+            <button type="button" class="btn btn-primary" id="uploadBtn">Upload file</button>
+        </section>
+
+        <section class="card" id="successCard" hidden>
+            <div class="card-header">
+                <h1 class="card-title">Link is ready</h1>
+                <p class="card-subtitle" id="successSubtitle">Anyone with this link can download the file.</p>
             </div>
-            
-            <button class="btn btn-secondary" style="margin-top:24px;" onclick="location.reload()">Upload Another</button>
-        </div>
-    </div>
 
+            <div class="share-row">
+                <input type="text" class="share-input" id="shareUrl" readonly>
+                <button type="button" class="btn btn-primary" id="copyShareBtn" style="width: auto; padding: 10px 18px;">Copy</button>
+            </div>
+
+            <div class="info-grid">
+                <div class="info-row">
+                    <span class="info-label">File</span>
+                    <span class="info-value" id="successFileName"></span>
+                </div>
+                <div class="info-row">
+                    <span class="info-label">Expires</span>
+                    <span class="info-value" id="successExpires"></span>
+                </div>
+                <div class="info-row">
+                    <span class="info-label">Downloads</span>
+                    <span class="info-value" id="successDownloads"></span>
+                </div>
+            </div>
+
+            <div style="display: flex; gap: 10px;">
+                <a href="#" target="_blank" rel="noopener" class="btn btn-secondary" id="previewBtn">Open page</a>
+                <button type="button" class="btn btn-primary" id="sendAnotherBtn">Send another</button>
+            </div>
+        </section>
+    </main>
+
+    <input type="file" id="fileInput" hidden>
+    <div class="toasts" id="toasts"></div>
+
+    <script src="/app.js"></script>
     <script>
-        const dropZone = document.getElementById('dropZone');
+    (() => {
+        'use strict';
+
+        const { fmtBytes, plural, toast, copyText, ICON_WARN } = window.App;
+
+        const uploadCard = document.getElementById('uploadCard');
+        const successCard = document.getElementById('successCard');
+        const dropzone = document.getElementById('dropzone');
+        const dropzoneHint = document.getElementById('dropzoneHint');
         const fileInput = document.getElementById('fileInput');
-        const fileNameDisplay = document.getElementById('fileNameDisplay');
-        const uploadForm = document.getElementById('uploadForm');
-        const progressContainer = document.getElementById('progressContainer');
+        const filePill = document.getElementById('filePill');
+        const fileExt = document.getElementById('fileExt');
+        const fileName = document.getElementById('fileName');
+        const fileSize = document.getElementById('fileSize');
+        const clearFileBtn = document.getElementById('clearFileBtn');
+
+        const expirySegmented = document.getElementById('expirySegmented');
+        const expirySubtext = document.getElementById('expirySubtext');
+        const dlDown = document.getElementById('dlDown');
+        const dlUp = document.getElementById('dlUp');
+        const dlValue = document.getElementById('dlValue');
+
+        const progressWrap = document.getElementById('progressWrap');
         const progressFill = document.getElementById('progressFill');
+        const progressLabel = document.getElementById('progressLabel');
+        const progressPct = document.getElementById('progressPct');
+        const noticeWrap = document.getElementById('noticeWrap');
         const uploadBtn = document.getElementById('uploadBtn');
-        const successArea = document.getElementById('successArea');
-        const fileUrl = document.getElementById('fileUrl');
-        const copyUrlBtn = document.getElementById('copyUrlBtn');
-        const errorMessage = document.getElementById('errorMessage');
-        const maxSizeDisplay = document.getElementById('maxSizeDisplay');
 
-        // Fetch Config
-        fetch('/api/config')
-            .then(res => res.json())
-            .then(data => {
-                const maxSizeMB = Math.floor(data.max_upload_size_bytes / (1024 * 1024));
-                maxSizeDisplay.textContent = `Max size: ${maxSizeMB} MB`;
-                
-                if (data.max_lifetime_days) {
-                    const maxHours = data.max_lifetime_days * 24;
-                    document.getElementById('lifetime_hours').max = maxHours;
-                }
-            })
-            .catch(err => console.error(err));
+        const shareUrl = document.getElementById('shareUrl');
+        const copyShareBtn = document.getElementById('copyShareBtn');
+        const successFileName = document.getElementById('successFileName');
+        const successExpires = document.getElementById('successExpires');
+        const successDownloads = document.getElementById('successDownloads');
+        const previewBtn = document.getElementById('previewBtn');
+        const sendAnotherBtn = document.getElementById('sendAnotherBtn');
 
-        // Drag and drop handling
-        dropZone.addEventListener('click', () => fileInput.click());
-        
-        dropZone.addEventListener('dragover', (e) => {
-            e.preventDefault();
-            dropZone.classList.add('dragover');
-        });
+        let selectedFile = null;
+        let selectedHours = 24;
+        let selectedDownloads = 0;
+        let maxUploadSizeBytes = Infinity;
+        let maxLifetimeHours = 168;
+        let isUploading = false;
 
-        dropZone.addEventListener('dragleave', () => {
-            dropZone.classList.remove('dragover');
-        });
+        const PRESETS = [
+            { h: 1, label: '1h' },
+            { h: 6, label: '6h' },
+            { h: 24, label: '1d' },
+            { h: 168, label: '7d' }
+        ];
 
-        dropZone.addEventListener('drop', (e) => {
-            e.preventDefault();
-            dropZone.classList.remove('dragover');
-            if (e.dataTransfer.files.length) {
-                fileInput.files = e.dataTransfer.files;
-                updateFileName();
-            }
-        });
-
-        fileInput.addEventListener('change', updateFileName);
-
-        function updateFileName() {
-            if (fileInput.files.length > 0) {
-                fileNameDisplay.innerHTML = `<strong>${fileInput.files[0].name}</strong>`;
-            }
+        function showNotice(msg, isSuccess = false) {
+            noticeWrap.innerHTML = '';
+            if (!msg) return;
+            const el = document.createElement('div');
+            el.className = 'notice' + (isSuccess ? ' notice-success' : '');
+            el.innerHTML = (isSuccess ? window.App.ICON_OK : ICON_WARN) + '<span></span>';
+            el.querySelector('span').textContent = msg;
+            noticeWrap.appendChild(el);
         }
 
-        uploadForm.addEventListener('submit', (e) => {
-            e.preventDefault();
-            if (fileInput.files.length === 0) return;
+        function formatHours(h) {
+            if (h < 24) return h === 1 ? '1 hour' : `${h} hours`;
+            const d = h / 24;
+            return d === 1 ? '1 day' : `${d} days`;
+        }
 
-            errorMessage.style.display = 'none';
-            uploadBtn.style.display = 'none';
-            progressContainer.style.display = 'block';
+        function renderChips() {
+            expirySegmented.innerHTML = '';
+            const valid = PRESETS.filter(p => p.h <= maxLifetimeHours);
+            if (!valid.length) valid.push({ h: maxLifetimeHours, label: `${maxLifetimeHours}h` });
+            valid.forEach(p => {
+                const btn = document.createElement('button');
+                btn.type = 'button';
+                btn.textContent = p.label;
+                btn.setAttribute('aria-pressed', String(p.h === selectedHours));
+                btn.addEventListener('click', () => {
+                    selectedHours = p.h;
+                    expirySubtext.textContent = formatHours(selectedHours);
+                    renderChips();
+                });
+                expirySegmented.appendChild(btn);
+            });
+            expirySubtext.textContent = formatHours(selectedHours);
+        }
 
-            const formData = new FormData(uploadForm);
+        function updateDlUI() {
+            dlValue.textContent = selectedDownloads === 0 ? 'Unlimited' : String(selectedDownloads);
+            dlDown.disabled = selectedDownloads <= 0;
+            dlUp.disabled = selectedDownloads >= 100;
+        }
+
+        dlDown.addEventListener('click', () => {
+            selectedDownloads = Math.max(0, selectedDownloads - (selectedDownloads > 10 ? 5 : 1));
+            updateDlUI();
+        });
+
+        dlUp.addEventListener('click', () => {
+            selectedDownloads = Math.min(100, selectedDownloads + (selectedDownloads >= 10 ? 5 : 1));
+            updateDlUI();
+        });
+
+        function handleFile(f) {
+            if (!f) return;
+            if (f.size === 0) return showNotice('The selected file is empty.');
+            if (Number.isFinite(maxUploadSizeBytes) && f.size > maxUploadSizeBytes) {
+                return showNotice(`File is ${fmtBytes(f.size)}. Server limit is ${fmtBytes(maxUploadSizeBytes)}.`);
+            }
+            showNotice('');
+            selectedFile = f;
+            fileName.textContent = f.name;
+            fileSize.textContent = fmtBytes(f.size);
+            const extMatch = /\.([a-zA-Z0-9]{1,6})$/.exec(f.name);
+            fileExt.textContent = extMatch ? extMatch[1].toUpperCase() : 'FILE';
+            dropzone.hidden = true;
+            filePill.hidden = false;
+        }
+
+        function clearFile() {
+            selectedFile = null;
+            fileInput.value = '';
+            dropzone.hidden = false;
+            filePill.hidden = true;
+            showNotice('');
+        }
+
+        dropzone.addEventListener('click', () => { if (!isUploading) fileInput.click(); });
+        dropzone.addEventListener('keydown', (e) => {
+            if ((e.key === 'Enter' || e.key === ' ') && !isUploading) {
+                e.preventDefault();
+                fileInput.click();
+            }
+        });
+
+        ['dragenter', 'dragover'].forEach(evt => {
+            dropzone.addEventListener(evt, (e) => {
+                e.preventDefault();
+                dropzone.classList.add('is-active');
+            });
+        });
+
+        ['dragleave', 'drop'].forEach(evt => {
+            dropzone.addEventListener(evt, (e) => {
+                e.preventDefault();
+                dropzone.classList.remove('is-active');
+            });
+        });
+
+        dropzone.addEventListener('drop', (e) => {
+            const dt = e.dataTransfer;
+            if (dt && dt.files && dt.files.length) {
+                handleFile(dt.files[0]);
+            }
+        });
+
+        fileInput.addEventListener('change', () => {
+            if (fileInput.files && fileInput.files.length) {
+                handleFile(fileInput.files[0]);
+            }
+        });
+
+        clearFileBtn.addEventListener('click', clearFile);
+
+        uploadBtn.addEventListener('click', () => {
+            if (isUploading) return;
+            if (!selectedFile) {
+                return showNotice('Please choose a file to upload first.');
+            }
+
+            isUploading = true;
+            uploadBtn.disabled = true;
+            uploadBtn.textContent = 'Uploading…';
+            showNotice('');
+            progressWrap.hidden = false;
+            progressFill.style.width = '0%';
+            progressPct.textContent = '0%';
+            progressLabel.textContent = `Uploading ${selectedFile.name}`;
+
+            const formData = new FormData();
+            formData.append('file', selectedFile);
+            formData.append('max_downloads', String(selectedDownloads));
+            formData.append('lifetime_hours', String(selectedHours));
+
             const xhr = new XMLHttpRequest();
-
             xhr.open('POST', '/api/upload', true);
 
-            xhr.upload.onprogress = (e) => {
-                if (e.lengthComputable) {
-                    const percentComplete = (e.loaded / e.total) * 100;
-                    progressFill.style.width = percentComplete + '%';
-                }
-            };
+            xhr.upload.addEventListener('progress', (e) => {
+                if (!e.lengthComputable) return;
+                const pct = Math.min((e.loaded / e.total) * 100, 100);
+                progressFill.style.width = `${pct}%`;
+                progressPct.textContent = `${Math.floor(pct)}%`;
+                progressLabel.textContent = `${fmtBytes(e.loaded)} of ${fmtBytes(e.total)}`;
+            });
 
-            xhr.onload = function() {
-                if (xhr.status === 200) {
-                    const res = JSON.parse(xhr.responseText);
-                    if (res.success) {
-                        uploadForm.style.display = 'none';
-                        successArea.style.display = 'block';
-                        const origin = window.location.origin || (window.location.protocol + '//' + window.location.host);
-                        const fileId = (res.file && res.file.id) ? res.file.id : '';
-                        fileUrl.value = origin + '/f/' + fileId;
-                    } else {
-                        showError(res.message);
-                    }
-                } else {
+            xhr.addEventListener('load', () => {
+                isUploading = false;
+                uploadBtn.disabled = false;
+                uploadBtn.textContent = 'Upload file';
+
+                if (xhr.status >= 200 && xhr.status < 300) {
                     try {
                         const res = JSON.parse(xhr.responseText);
-                        showError(res.message || "Upload failed.");
-                    } catch(e) {
-                        showError("Upload failed due to an error.");
+                        if (res.success && res.file) {
+                            return onUploadSuccess(res.file);
+                        }
+                        showNotice(res.message || 'Upload failed.');
+                    } catch (_) {
+                        showNotice('Invalid server response.');
                     }
+                } else {
+                    let err = 'Upload failed. Please try again.';
+                    try {
+                        const res = JSON.parse(xhr.responseText);
+                        if (res.message) err = res.message;
+                    } catch (_) {}
+                    showNotice(err);
                 }
-            };
+                progressWrap.hidden = true;
+            });
 
-            xhr.onerror = function() {
-                showError("Network error occurred.");
-            };
+            xhr.addEventListener('error', () => {
+                isUploading = false;
+                uploadBtn.disabled = false;
+                uploadBtn.textContent = 'Upload file';
+                progressWrap.hidden = true;
+                showNotice('Network error occurred during upload.');
+            });
 
             xhr.send(formData);
         });
 
-        function showError(msg) {
-            errorMessage.textContent = msg;
-            errorMessage.style.display = 'block';
-            uploadBtn.style.display = 'inline-block';
-            progressContainer.style.display = 'none';
-            progressFill.style.width = '0%';
+        function onUploadSuccess(file) {
+            progressWrap.hidden = true;
+            uploadCard.hidden = true;
+            successCard.hidden = false;
+
+            const url = `${window.location.origin}/f/${file.id}`;
+            shareUrl.value = url;
+            previewBtn.href = url;
+
+            successFileName.textContent = file.original_name;
+            successExpires.textContent = formatHours(selectedHours);
+            successDownloads.textContent = selectedDownloads === 0 ? 'Unlimited' : plural(selectedDownloads, 'download');
+
+            toast('File uploaded successfully');
+            shareUrl.focus();
+            shareUrl.select();
         }
 
-        function showCopied() {
-            copyUrlBtn.textContent = 'Copied!';
-            setTimeout(() => {
-                copyUrlBtn.textContent = 'Copy';
-            }, 2000);
-        }
-
-        copyUrlBtn.addEventListener('click', () => {
-            const urlToCopy = fileUrl.value;
-            
-            // Modern Clipboard API
-            if (navigator.clipboard && window.isSecureContext) {
-                navigator.clipboard.writeText(urlToCopy).then(() => {
-                    showCopied();
-                }).catch(err => {
-                    console.error('Clipboard write failed', err);
-                    fallbackCopy();
-                });
+        copyShareBtn.addEventListener('click', async () => {
+            const ok = await copyText(shareUrl.value);
+            if (ok) {
+                toast('Link copied to clipboard');
             } else {
-                fallbackCopy();
-            }
-            
-            function fallbackCopy() {
-                fileUrl.focus();
-                fileUrl.select();
-                fileUrl.setSelectionRange(0, 99999); // Crucial for mobile devices
-                try {
-                    document.execCommand('copy');
-                    showCopied();
-                } catch (e) {
-                    console.error('execCommand copy failed', e);
-                    // Fallback visual feedback if even execCommand fails
-                    copyUrlBtn.textContent = 'Error';
-                    setTimeout(() => copyUrlBtn.textContent = 'Copy', 2000);
-                }
+                toast('Failed to copy', 'warn');
             }
         });
+
+        sendAnotherBtn.addEventListener('click', () => {
+            clearFile();
+            selectedHours = Math.min(24, maxLifetimeHours);
+            selectedDownloads = 0;
+            renderChips();
+            updateDlUI();
+            successCard.hidden = true;
+            uploadCard.hidden = false;
+        });
+
+        fetch('/api/config')
+            .then(r => r.json())
+            .then(cfg => {
+                if (cfg.max_upload_size_bytes) {
+                    maxUploadSizeBytes = cfg.max_upload_size_bytes;
+                    dropzoneHint.textContent = `or click to browse · up to ${fmtBytes(maxUploadSizeBytes)}`;
+                }
+                if (cfg.max_lifetime_days) {
+                    maxLifetimeHours = cfg.max_lifetime_days * 24;
+                }
+                if (selectedHours > maxLifetimeHours) selectedHours = maxLifetimeHours;
+                renderChips();
+            })
+            .catch(() => {
+                renderChips();
+            });
+
+        updateDlUI();
+    })();
     </script>
 </body>
 </html>

@@ -19,7 +19,7 @@ import (
 	"xmen-uploader/handlers"
 )
 
-//go:embed static/*
+//go:embed static
 var staticFS embed.FS
 
 func main() {
