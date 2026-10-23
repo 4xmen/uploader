@@ -1,0 +1,40 @@
+version: 2
+
+project_name: xmen-uploader
+
+builds:
+  - id: xmen-uploader
+    main: .
+    binary: xmen-uploader
+    goos:
+      - linux
+    goarch:
+      - amd64
+    env:
+      - CGO_ENABLED=0
+    flags:
+      - -trimpath
+    ldflags:
+      - -s -w -X main.Version={{ .Version }}
+
+archives:
+  - id: xmen-uploader
+    formats:
+      - zip
+    name_template: "{{ .ProjectName }}-{{ .Os }}-{{ .Arch }}"
+    files:
+      - README.md
+    wrap_in_directory: false
+
+checksum:
+  name_template: "{{ .ProjectName }}-checksums.txt"
+
+release:
+  prerelease: auto
+
+changelog:
+  sort: asc
+  filters:
+    exclude:
+      - "^docs:"
+      - "^test:"

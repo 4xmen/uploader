@@ -22,6 +22,8 @@ import (
 //go:embed static
 var staticFS embed.FS
 
+var Version = "dev"
+
 func main() {
 	config.LoadConfig()
 	db.InitDB()
@@ -90,7 +92,7 @@ func main() {
 	staticDir, _ := fs.Sub(staticFS, "static")
 	FileServer(r, "/", http.FS(staticDir))
 
-	log.Printf("Starting XMen Uploader on port %s", config.AppConfig.Port)
+	log.Printf("Starting XMen Uploader %s on port %s", Version, config.AppConfig.Port)
 	err := http.ListenAndServe(":"+config.AppConfig.Port, r)
 	if err != nil {
 		log.Fatalf("Server failed to start: %v", err)
