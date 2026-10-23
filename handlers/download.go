@@ -16,7 +16,7 @@ import (
 
 func DownloadHandler(w http.ResponseWriter, r *http.Request) {
 	id := chi.URLParam(r, "id")
-	
+
 	file, err := db.GetFile(id)
 	if err != nil {
 		if err == sql.ErrNoRows {
@@ -27,25 +27,21 @@ func DownloadHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Check expiration
 	if time.Now().After(file.ExpiresAt) {
 		http.Error(w, "File expired", http.StatusGone)
 		return
 	}
 
-	// Check max downloads
-	if file.MaxDownloads > 0 && file.DownloadCount >= file.MaxDownloads {
+	allowed, err := db.TryIncrementDownloadCount(id)
+	if err != nil {
+		http.Error(w, "Failed to update download stats", http.StatusInternalServerError)
+		return
+	}
+	if !allowed {
 		http.Error(w, "Max downloads reached", http.StatusGone)
 		return
 	}
 
-	// Increment download count
-	if err := db.IncrementDownloadCount(id); err != nil {
-		http.Error(w, "Failed to update stats", http.StatusInternalServerError)
-		return
-	}
-
-	// Serve the file (prevent directory traversal by strictly using filepath.Base)
 	safeFileName := filepath.Base(file.StorageName)
 	storagePath := filepath.Join(config.AppConfig.StoragePath, safeFileName)
 	if _, err := os.Stat(storagePath); os.IsNotExist(err) {
@@ -56,12 +52,13 @@ func DownloadHandler(w http.ResponseWriter, r *http.Request) {
 	cd := mime.FormatMediaType("attachment", map[string]string{"filename": file.OriginalName})
 	w.Header().Set("Content-Disposition", cd)
 	w.Header().Set("Content-Type", file.MimeType)
+	w.Header().Set("X-Content-Type-Options", "nosniff")
 	http.ServeFile(w, r, storagePath)
 }
 
 func GetFileInfoHandler(w http.ResponseWriter, r *http.Request) {
 	id := chi.URLParam(r, "id")
-	
+
 	file, err := db.GetFile(id)
 	if err != nil {
 		if err == sql.ErrNoRows {
@@ -72,19 +69,16 @@ func GetFileInfoHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Check expiration
 	if time.Now().After(file.ExpiresAt) {
 		http.Error(w, "File expired", http.StatusGone)
 		return
 	}
 
-	// Check max downloads
 	if file.MaxDownloads > 0 && file.DownloadCount >= file.MaxDownloads {
 		http.Error(w, "Max downloads reached", http.StatusGone)
 		return
 	}
 
-	// Hide exact storage path for security, and just send the safe metadata
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(file)
 }

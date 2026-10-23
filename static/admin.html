@@ -126,12 +126,26 @@
             showNotice('');
 
             try {
-                const res = await fetch(`/api/admin/stats?secret=${encodeURIComponent(key)}`);
+                const res = await fetch('/api/admin/stats', {
+                    method: 'GET',
+                    headers: {
+                        'Authorization': `Bearer ${key}`
+                    }
+                });
+
                 if (res.status === 401) {
                     localStorage.removeItem(STORAGE_KEY);
                     loginCard.hidden = false;
                     statsCard.hidden = true;
                     showNotice('Invalid admin secret.');
+                    return;
+                }
+                if (res.status === 403) {
+                    showNotice('Admin access is disabled on the server.');
+                    return;
+                }
+                if (res.status === 429) {
+                    showNotice('Too many attempts. Please wait a minute and retry.');
                     return;
                 }
                 if (!res.ok) {

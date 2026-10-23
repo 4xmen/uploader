@@ -60,15 +60,27 @@ func GetFile(id string) (*models.File, error) {
 	if err != nil {
 		return nil, err
 	}
-	
+
 	f.UploadedAt, _ = time.Parse(time.RFC3339, uploadedAtStr)
 	f.ExpiresAt, _ = time.Parse(time.RFC3339, expiresAtStr)
 	return f, nil
 }
 
+func TryIncrementDownloadCount(id string) (bool, error) {
+	query := `UPDATE files SET download_count = download_count + 1 WHERE id = ? AND (max_downloads = 0 OR download_count < max_downloads)`
+	res, err := DB.Exec(query, id)
+	if err != nil {
+		return false, err
+	}
+	rows, err := res.RowsAffected()
+	if err != nil {
+		return false, err
+	}
+	return rows > 0, nil
+}
+
 func IncrementDownloadCount(id string) error {
-	query := `UPDATE files SET download_count = download_count + 1 WHERE id = ?`
-	_, err := DB.Exec(query, id)
+	_, err := TryIncrementDownloadCount(id)
 	return err
 }
 
@@ -78,7 +90,6 @@ func DeleteFile(id string) error {
 	return err
 }
 
-// GetExpiredFiles returns files where expires_at is past or max_downloads > 0 and download_count >= max_downloads
 func GetExpiredFiles() ([]models.File, error) {
 	query := `SELECT id, storage_name FROM files WHERE expires_at <= ? OR (max_downloads > 0 AND download_count >= max_downloads)`
 	rows, err := DB.Query(query, time.Now().Format(time.RFC3339))
@@ -100,29 +111,28 @@ func GetExpiredFiles() ([]models.File, error) {
 
 func GetStats() (map[string]interface{}, error) {
 	stats := make(map[string]interface{})
-	
+
 	var totalFiles int
 	err := DB.QueryRow(`SELECT COUNT(*) FROM files`).Scan(&totalFiles)
 	if err != nil {
 		return nil, err
 	}
-	
+
 	var totalSize int64
-	// COALESCE to handle NULL when no files exist
 	err = DB.QueryRow(`SELECT COALESCE(SUM(size), 0) FROM files`).Scan(&totalSize)
 	if err != nil {
 		return nil, err
 	}
-	
+
 	var totalDownloads int
 	err = DB.QueryRow(`SELECT COALESCE(SUM(download_count), 0) FROM files`).Scan(&totalDownloads)
 	if err != nil {
 		return nil, err
 	}
-	
+
 	stats["active_files"] = totalFiles
 	stats["total_size_bytes"] = totalSize
 	stats["total_downloads"] = totalDownloads
-	
+
 	return stats, nil
 }

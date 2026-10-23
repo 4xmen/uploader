@@ -23,32 +23,40 @@ import (
 var staticFS embed.FS
 
 func main() {
-	// Initialize Configuration
 	config.LoadConfig()
-
-	// Initialize Database
 	db.InitDB()
-
-	// Start Background Cleanup Task
 	go startCleanupTask()
 
-	// Initialize Router
 	r := chi.NewRouter()
 
-	r.Use(middleware.RealIP) // Extremely important for rate limiting behind a CDN
+	if config.AppConfig.TrustProxy {
+		r.Use(middleware.RealIP)
+	}
+
 	r.Use(middleware.Logger)
 	r.Use(middleware.Recoverer)
+
+	r.Use(func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			w.Header().Set("X-Content-Type-Options", "nosniff")
+			w.Header().Set("X-Frame-Options", "DENY")
+			w.Header().Set("Referrer-Policy", "strict-origin-when-cross-origin")
+			w.Header().Set("Content-Security-Policy", "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self'; frame-ancestors 'none';")
+			next.ServeHTTP(w, r)
+		})
+	})
+
 	r.Use(cors.Handler(cors.Options{
-		AllowedOrigins: config.AppConfig.AllowedOrigins,
-		AllowedMethods: []string{"GET", "POST", "OPTIONS"},
+		AllowedOrigins:   config.AppConfig.AllowedOrigins,
+		AllowedMethods:   []string{"GET", "POST", "OPTIONS"},
+		AllowedHeaders:   []string{"Accept", "Authorization", "Content-Type", "X-Admin-Secret"},
+		AllowCredentials: false,
+		MaxAge:           300,
 	}))
 
-	// Global rate limit: 60 requests per minute per IP
 	r.Use(httprate.LimitByIP(60, 1*time.Minute))
 
-	// API Routes
 	r.Route("/api", func(r chi.Router) {
-		// Public config endpoint
 		r.Get("/config", func(w http.ResponseWriter, r *http.Request) {
 			w.Header().Set("Content-Type", "application/json")
 			json.NewEncoder(w).Encode(map[string]interface{}{
@@ -57,33 +65,31 @@ func main() {
 			})
 		})
 
-		// Stricter rate limit for uploads: 10 uploads per minute per IP
 		r.With(httprate.LimitByIP(10, 1*time.Minute)).Post("/upload", handlers.UploadHandler)
-		
-		r.Get("/download/{id}", handlers.DownloadHandler)
-		r.Get("/info/{id}", handlers.GetFileInfoHandler)
-		
-		// Stricter rate limit for admin secret checks (prevent brute force)
-		r.With(httprate.LimitByIP(5, 1*time.Minute)).Get("/admin/stats", handlers.AdminStatsHandler)
+		r.With(httprate.LimitByIP(20, 1*time.Minute)).Get("/download/{id}", handlers.DownloadHandler)
+		r.With(httprate.LimitByIP(30, 1*time.Minute)).Get("/info/{id}", handlers.GetFileInfoHandler)
+
+		r.With(httprate.LimitByIP(5, 1*time.Minute)).Route("/admin/stats", func(r chi.Router) {
+			r.Get("/", handlers.AdminStatsHandler)
+			r.Post("/", handlers.AdminStatsHandler)
+		})
 	})
 
-	// Frontend routes
 	r.Get("/f/{id}", func(w http.ResponseWriter, r *http.Request) {
 		content, _ := staticFS.ReadFile("static/download.html")
-		w.Header().Set("Content-Type", "text/html")
-		w.Write(content)
-	})
-	r.Get("/admin", func(w http.ResponseWriter, r *http.Request) {
-		content, _ := staticFS.ReadFile("static/admin.html")
-		w.Header().Set("Content-Type", "text/html")
+		w.Header().Set("Content-Type", "text/html; charset=utf-8")
 		w.Write(content)
 	})
 
-	// Serve Static Files (CSS, JS, index.html)
+	r.Get("/admin", func(w http.ResponseWriter, r *http.Request) {
+		content, _ := staticFS.ReadFile("static/admin.html")
+		w.Header().Set("Content-Type", "text/html; charset=utf-8")
+		w.Write(content)
+	})
+
 	staticDir, _ := fs.Sub(staticFS, "static")
 	FileServer(r, "/", http.FS(staticDir))
 
-	// Start Server
 	log.Printf("Starting XMen Uploader on port %s", config.AppConfig.Port)
 	err := http.ListenAndServe(":"+config.AppConfig.Port, r)
 	if err != nil {
@@ -91,8 +97,6 @@ func main() {
 	}
 }
 
-// FileServer conveniently sets up a http.FileServer handler to serve
-// static files from a http.FileSystem.
 func FileServer(r chi.Router, path string, root http.FileSystem) {
 	fs := http.StripPrefix(path, http.FileServer(root))
 	if path != "/" && path[len(path)-1] != '/' {
@@ -105,11 +109,9 @@ func FileServer(r chi.Router, path string, root http.FileSystem) {
 	})
 }
 
-// Background task to delete expired or fully downloaded files
 func startCleanupTask() {
 	ticker := time.NewTicker(1 * time.Minute)
-	for {
-		<-ticker.C
+	for range ticker.C {
 		files, err := db.GetExpiredFiles()
 		if err != nil {
 			log.Printf("Cleanup error: %v", err)
@@ -117,11 +119,8 @@ func startCleanupTask() {
 		}
 
 		for _, f := range files {
-			// Delete physical file
 			storagePath := filepath.Join(config.AppConfig.StoragePath, f.StorageName)
 			os.Remove(storagePath)
-
-			// Delete from DB
 			db.DeleteFile(f.ID)
 			log.Printf("Cleaned up expired file: %s", f.ID)
 		}

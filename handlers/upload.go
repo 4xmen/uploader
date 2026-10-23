@@ -7,6 +7,7 @@ import (
 	"os"
 	"path/filepath"
 	"strconv"
+	"strings"
 	"time"
 
 	gonanoid "github.com/matoous/go-nanoid/v2"
@@ -22,12 +23,11 @@ type UploadResponse struct {
 }
 
 func UploadHandler(w http.ResponseWriter, r *http.Request) {
-	// Limit request body size
 	r.Body = http.MaxBytesReader(w, r.Body, config.AppConfig.MaxUploadSize)
 
 	err := r.ParseMultipartForm(config.AppConfig.MaxUploadSize)
 	if err != nil {
-		sendJSONResponse(w, http.StatusBadRequest, false, "File too large or invalid request", nil)
+		sendJSONResponse(w, http.StatusBadRequest, false, "File exceeds maximum upload size or invalid request", nil)
 		return
 	}
 
@@ -38,15 +38,16 @@ func UploadHandler(w http.ResponseWriter, r *http.Request) {
 	}
 	defer file.Close()
 
-	// Parse custom options
-	maxDownloadsStr := r.FormValue("max_downloads")
-	lifetimeHoursStr := r.FormValue("lifetime_hours")
+	maxDownloads, _ := strconv.Atoi(r.FormValue("max_downloads"))
+	if maxDownloads < 0 {
+		maxDownloads = 0
+	} else if maxDownloads > 10000 {
+		maxDownloads = 10000
+	}
 
-	maxDownloads, _ := strconv.Atoi(maxDownloadsStr)
-	lifetimeHours, _ := strconv.Atoi(lifetimeHoursStr)
-
+	lifetimeHours, _ := strconv.Atoi(r.FormValue("lifetime_hours"))
 	if lifetimeHours <= 0 {
-		lifetimeHours = 24 // default 1 day
+		lifetimeHours = 24
 	}
 	maxAllowedHours := config.AppConfig.MaxAllowedLifetimeDays * 24
 	if lifetimeHours > maxAllowedHours {
@@ -56,28 +57,37 @@ func UploadHandler(w http.ResponseWriter, r *http.Request) {
 
 	expiresAt := time.Now().Add(time.Duration(lifetimeHours) * time.Hour)
 
-	// Generate ID and Storage Name
-	id, _ := gonanoid.New(10)
-	storageName := id + filepath.Ext(handler.Filename)
+	id, err := gonanoid.New(10)
+	if err != nil {
+		sendJSONResponse(w, http.StatusInternalServerError, false, "Failed to generate file identifier", nil)
+		return
+	}
+
+	ext := sanitizeExtension(handler.Filename)
+	storageName := id + ext
 	storagePath := filepath.Join(config.AppConfig.StoragePath, storageName)
 
-	// Save to disk
 	dst, err := os.Create(storagePath)
 	if err != nil {
-		sendJSONResponse(w, http.StatusInternalServerError, false, "Error saving file", nil)
+		sendJSONResponse(w, http.StatusInternalServerError, false, "Error saving file to disk", nil)
 		return
 	}
 	defer dst.Close()
 
 	if _, err := io.Copy(dst, file); err != nil {
-		sendJSONResponse(w, http.StatusInternalServerError, false, "Error copying file", nil)
+		os.Remove(storagePath)
+		sendJSONResponse(w, http.StatusInternalServerError, false, "Error copying file content", nil)
 		return
 	}
 
-	// Create model
+	cleanOriginalName := filepath.Base(handler.Filename)
+	if cleanOriginalName == "." || cleanOriginalName == "/" || cleanOriginalName == "" {
+		cleanOriginalName = "file"
+	}
+
 	fileModel := &models.File{
 		ID:            id,
-		OriginalName:  handler.Filename,
+		OriginalName:  cleanOriginalName,
 		StorageName:   storageName,
 		Size:          handler.Size,
 		MimeType:      handler.Header.Get("Content-Type"),
@@ -87,15 +97,21 @@ func UploadHandler(w http.ResponseWriter, r *http.Request) {
 		DownloadCount: 0,
 	}
 
-	// Save to DB
 	if err := db.SaveFile(fileModel); err != nil {
-		// Cleanup physical file if db fails
 		os.Remove(storagePath)
 		sendJSONResponse(w, http.StatusInternalServerError, false, "Error saving to database", nil)
 		return
 	}
 
 	sendJSONResponse(w, http.StatusOK, true, "File uploaded successfully", fileModel)
+}
+
+func sanitizeExtension(filename string) string {
+	ext := filepath.Ext(filename)
+	if len(ext) > 16 || strings.ContainsAny(ext, "/\\ \x00;\"'") {
+		return ""
+	}
+	return ext
 }
 
 func sendJSONResponse(w http.ResponseWriter, status int, success bool, message string, file *models.File) {

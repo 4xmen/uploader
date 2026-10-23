@@ -17,27 +17,31 @@ type Config struct {
 	DatabasePath           string
 	StoragePath            string
 	AllowedOrigins         []string
+	TrustProxy             bool
 }
 
 var AppConfig Config
 
 func LoadConfig() {
-	err := godotenv.Load()
-	if err != nil {
-		log.Println("No .env file found, falling back to environment variables")
-	}
+	_ = godotenv.Load()
 
 	AppConfig = Config{
 		Port:                   getEnv("PORT", "8080"),
 		MaxUploadSize:          getEnvAsInt64("MAX_UPLOAD_SIZE_MB", 50) * 1024 * 1024,
 		MaxAllowedLifetimeDays: getEnvAsInt("MAX_ALLOWED_LIFETIME_DAYS", 7),
-		AdminSecret:            getEnv("ADMIN_SECRET", "admin123"),
+		AdminSecret:            getEnv("ADMIN_SECRET", ""),
 		DatabasePath:           getEnv("DATABASE_PATH", "uploader.db"),
 		StoragePath:            getEnv("STORAGE_PATH", "./uploads"),
 		AllowedOrigins:         getEnvAsSlice("ALLOWED_ORIGINS", []string{"*"}),
+		TrustProxy:             getEnvAsBool("TRUST_PROXY", false),
 	}
 
-	// Ensure storage path exists
+	if AppConfig.AdminSecret == "" {
+		log.Println("WARNING: ADMIN_SECRET is not set. Admin endpoints will be disabled.")
+	} else if AppConfig.AdminSecret == "admin123" {
+		log.Println("WARNING: Insecure default ADMIN_SECRET 'admin123' is being used.")
+	}
+
 	if err := os.MkdirAll(AppConfig.StoragePath, os.ModePerm); err != nil {
 		log.Fatalf("Failed to create storage directory: %v", err)
 	}
@@ -45,9 +49,24 @@ func LoadConfig() {
 
 func getEnv(key string, fallback string) string {
 	if value, exists := os.LookupEnv(key); exists {
-		return value
+		trimmed := strings.TrimSpace(value)
+		if trimmed != "" {
+			return trimmed
+		}
 	}
 	return fallback
+}
+
+func getEnvAsBool(name string, defaultVal bool) bool {
+	valStr := getEnv(name, "")
+	if valStr == "" {
+		return defaultVal
+	}
+	parsed, err := strconv.ParseBool(valStr)
+	if err != nil {
+		return defaultVal
+	}
+	return parsed
 }
 
 func getEnvAsInt(name string, defaultVal int) int {
