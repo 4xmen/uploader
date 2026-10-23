@@ -1,59 +1,78 @@
 # XMen Uploader
 
-A modern, fast, and minimal file uploader built with Go and vanilla web technologies. Features an Apple-like UI with drag-and-drop support, download limits, and automated file expiration.
+A modern, fast, and private file uploader built with Go and vanilla web technologies. Features an Apple Liquid Glass UI, drag-and-drop file sharing, custom expiration times, download limits, and an administrative dashboard.
+
+---
 
 ## Features
 
-- **No Login Required**: Simple drag-and-drop file sharing.
-- **Configurable Limits**: Set maximum file upload sizes and maximum lifetime across the server.
-- **Download Limits**: Users can specify how many times a file can be downloaded before it expires.
-- **Lifetime Expiration**: Users can set an expiration time (in hours). Background tasks automatically clean up expired files.
-- **Admin Dashboard**: View total active files, downloads, and storage usage.
-- **Secure**: Built-in rate limiting (global and per-upload) and path traversal protections.
-- **Modern UI**: Apple-style glassmorphism, responsive design, and automatic dark mode support.
+- **No Account Required**: Instant drag-and-drop file sharing with automatic share links.
+- **Configurable Limits**: Set maximum file upload size and maximum retention duration.
+- **Download Limits**: Restrict how many times a file can be downloaded before it is deleted.
+- **Automatic Expiration**: Files self-destruct when their deadline passes. Background workers clean up expired files from disk and database.
+- **Admin Dashboard**: Live overview of active files, total downloads, and storage usage.
+- **Hardened Security**:
+  - Header-based admin authentication (`Authorization: Bearer <secret>`).
+  - Rate limiting on API routes and brute-force protection.
+  - Proxy-aware IP spoofing protection (`TRUST_PROXY`).
+  - Atomic download tracking to prevent race conditions.
+  - Path traversal protections and strict security headers (`CSP`, `nosniff`, `DENY`).
+- **Apple Liquid Glass UI**: Refined translucent glass materials, responsive layout, and automatic light/dark mode.
 
-## Getting Started
+---
 
-### Prerequisites
+## Installation (Ubuntu / Debian)
 
-- Go 1.21 or higher installed on your system.
+Install the latest release with one command on any systemd-based Linux host:
 
-### Installation
+```bash
+curl -fsSL https://raw.githubusercontent.com/4xmen/uploader/main/install.sh | sudo bash -s -- --install
+```
 
-1. Clone the repository or navigate to the project folder:
-   ```bash
-   cd xmen-uploader
-   ```
+### Upgrade Existing Installation
 
-2. Download dependencies:
-   ```bash
-   go mod download
-   ```
+Upgrade the binary to the latest release without affecting your data or configuration:
 
-3. Configure your environment. The application will use a `.env` file in the root directory if one exists, or fallback to system environment variables. You can customize the `.env` file:
-   ```env
-   PORT=8080
-   MAX_UPLOAD_SIZE_MB=50
-   MAX_ALLOWED_LIFETIME_DAYS=7
-   ADMIN_SECRET=xmenadmin
-   DATABASE_PATH=uploader.db
-   STORAGE_PATH=./uploads
-   ALLOWED_ORIGINS=*
-   ```
+```bash
+curl -fsSL https://raw.githubusercontent.com/4xmen/uploader/main/install.sh | sudo bash -s -- --update
+```
 
-4. Run the application:
-   ```bash
-   go run main.go
-   ```
+### Service Management
 
-5. Open your browser and navigate to `http://localhost:8080`
+```bash
+# Check service status
+sudo systemctl status xmen-uploader
 
-### Admin Dashboard
+# View real-time logs
+sudo journalctl -u xmen-uploader -f
 
-Navigate to `http://localhost:8080/admin` and use the `ADMIN_SECRET` defined in your `.env` to view server statistics.
+# Restart service after editing .env
+sudo systemctl restart xmen-uploader
+```
 
-## Security Features
+---
 
-- **Rate Limiting**: Uses `httprate` to restrict global API requests (100 req/min per IP) and strict limits on the upload route (10 uploads/min per IP).
-- **Directory Traversal Protection**: Uses strict filename parsing (`filepath.Base`) to ensure files are only served from the intended `uploads/` directory.
-- **File Expiration Enforcement**: Both the metadata API and the download stream strictly enforce expiration timestamps and download counts, returning HTTP 410 (Gone) immediately.
+## Configuration
+
+Configuration is stored in `/opt/xmen-uploader/.env`:
+
+| Variable | Default | Description |
+|---|---|---|
+| `PORT` | `8089` | Port for web interface and API |
+| `MAX_UPLOAD_SIZE_MB` | `50` | Maximum file size in megabytes |
+| `MAX_ALLOWED_LIFETIME_DAYS` | `7` | Maximum file retention allowed in days |
+| `ADMIN_SECRET` | *(auto-generated)* | Secret key used to access `/admin` |
+| `DATABASE_PATH` | `/opt/xmen-uploader/data/uploader.db` | Path to SQLite database file |
+| `STORAGE_PATH` | `/opt/xmen-uploader/data/uploads` | Path to stored uploaded files |
+| `ALLOWED_ORIGINS` | `*` | Allowed CORS origins for API requests |
+| `TRUST_PROXY` | `false` | Set to true only if running behind a trusted reverse proxy (e.g. Nginx, Caddy) |
+
+---
+
+## Admin Dashboard
+
+Access the admin dashboard at:
+```
+http://<server-ip>:8089/admin
+```
+Enter the `ADMIN_SECRET` from `/opt/xmen-uploader/.env` to unlock live statistics.
