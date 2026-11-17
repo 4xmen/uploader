@@ -21,6 +21,8 @@
       host = document.createElement('div');
       host.id = 'toasts';
       host.className = 'toasts';
+      host.setAttribute('aria-live', 'polite');
+      host.setAttribute('aria-atomic', 'false');
       document.body.appendChild(host);
     }
     const el = document.createElement('div');

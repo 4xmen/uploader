@@ -4,8 +4,8 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
     <meta name="color-scheme" content="light dark">
-    <meta name="theme-color" content="#eceef3" media="(prefers-color-scheme: light)">
-    <meta name="theme-color" content="#0b0c10" media="(prefers-color-scheme: dark)">
+    <meta name="theme-color" content="#eef0f4" media="(prefers-color-scheme: light)">
+    <meta name="theme-color" content="#0a0b0e" media="(prefers-color-scheme: dark)">
     <meta name="robots" content="noindex">
     <title>Shared file — XMen Uploader</title>
     <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='9' fill='%230071e3'/%3E%3Cpath d='M16 8v12m0 0 5-5m-5 5-5-5M10 24h12' stroke='white' stroke-width='2.4' stroke-linecap='round' stroke-linejoin='round' fill='none'/%3E%3C/svg%3E">
@@ -20,24 +20,27 @@
                         <path d="M12 4v11m0 0 4-4m-4 4-4-4M4 19h16"/>
                     </svg>
                 </span>
-                <span class="brand-title">Shared File</span>
+                <span class="brand-title">XMen Uploader</span>
             </a>
             <a href="/" class="nav-link">Send yours</a>
         </header>
 
-        <section class="card" id="loadingCard">
-            <div class="card-header">
-                <h1 class="card-title">Checking link…</h1>
-                <p class="card-subtitle">Connecting to server.</p>
+        <section class="card" id="loadingCard" aria-busy="true">
+            <div class="loading-state">
+                <span class="spinner" aria-hidden="true"></span>
+                <div class="card-header">
+                    <h1 class="card-title">Checking link…</h1>
+                    <p class="card-subtitle">Connecting to server.</p>
+                </div>
             </div>
         </section>
 
-        <section class="card" id="errorCard" hidden>
+        <section class="card" id="errorCard" aria-live="polite" hidden>
             <div class="card-header">
                 <h1 class="card-title" id="errorTitle">Link unavailable</h1>
                 <p class="card-subtitle" id="errorMessage">This file has expired or was removed.</p>
             </div>
-            <div style="display: flex; gap: 10px;">
+            <div class="actions-row">
                 <a href="/" class="btn btn-primary">Send a file</a>
                 <button type="button" class="btn btn-secondary" id="retryBtn">Retry</button>
             </div>
@@ -63,21 +66,21 @@
                     <span class="info-value" id="fileExpiry">—</span>
                 </div>
                 <div class="info-row">
-                    <span class="info-label">Downloads remaining</span>
+                    <span class="info-label">Downloads left</span>
                     <span class="info-value" id="fileDownloads">—</span>
                 </div>
             </div>
 
-            <div id="noticeWrap"></div>
+            <div id="noticeWrap" class="notice-wrap" aria-live="polite"></div>
 
-            <div style="display: flex; flex-direction: column; gap: 10px;">
+            <div class="actions-stack">
                 <button type="button" class="btn btn-primary" id="downloadBtn">Download file</button>
                 <button type="button" class="btn btn-secondary" id="copyLinkBtn">Copy link</button>
             </div>
         </section>
     </main>
 
-    <div class="toasts" id="toasts"></div>
+    <div class="toasts" id="toasts" aria-live="polite" aria-atomic="false"></div>
 
     <script src="/app.js"></script>
     <script>
@@ -163,7 +166,7 @@
                 fileDownloads.textContent = 'Unlimited';
             } else {
                 const remaining = Math.max(0, fileData.max_downloads - fileData.download_count);
-                fileDownloads.textContent = remaining === 0 ? 'None left' : `${remaining} of ${fileData.max_downloads} left`;
+                fileDownloads.textContent = remaining === 0 ? 'None' : `${remaining} of ${fileData.max_downloads}`;
                 if (remaining === 0) {
                     downloadBtn.disabled = true;
                     downloadBtn.textContent = 'Download limit reached';

@@ -4,8 +4,8 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
     <meta name="color-scheme" content="light dark">
-    <meta name="theme-color" content="#eceef3" media="(prefers-color-scheme: light)">
-    <meta name="theme-color" content="#0b0c10" media="(prefers-color-scheme: dark)">
+    <meta name="theme-color" content="#eef0f4" media="(prefers-color-scheme: light)">
+    <meta name="theme-color" content="#0a0b0e" media="(prefers-color-scheme: dark)">
     <title>XMen Uploader</title>
     <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='9' fill='%230071e3'/%3E%3Cpath d='M16 8v12m0 0 5-5m-5 5-5-5M10 24h12' stroke='white' stroke-width='2.4' stroke-linecap='round' stroke-linejoin='round' fill='none'/%3E%3C/svg%3E">
     <link rel="stylesheet" href="/style.css">
@@ -31,16 +31,16 @@
                 <p class="card-subtitle">Encrypted and self-expiring link.</p>
             </div>
 
-            <div class="dropzone" id="dropzone" role="button" tabindex="0" aria-label="Choose a file or drop one here">
-                <div class="dropzone-icon">
+            <button type="button" class="dropzone" id="dropzone" aria-label="Choose a file or drop one here">
+                <span class="dropzone-icon">
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                         <path d="M12 16.5V4m0 0 4.5 4.5M12 4 7.5 8.5"/>
                         <path d="M4 15v3.5A2.5 2.5 0 0 0 6.5 21h11a2.5 2.5 0 0 0 2.5-2.5V15"/>
                     </svg>
-                </div>
+                </span>
                 <span class="dropzone-title">Drop your file here</span>
-                <span class="dropzone-hint" id="dropzoneHint">or click to browse</span>
-            </div>
+                <span class="dropzone-hint" id="dropzoneHint">Click to browse</span>
+            </button>
 
             <div class="file-pill" id="filePill" hidden>
                 <div class="file-icon" id="fileExt">FILE</div>
@@ -67,7 +67,7 @@
                 <div class="option-row">
                     <div class="option-label-bar">
                         <span class="option-label">Download limit</span>
-                        <span class="option-subtext">0 for unlimited</span>
+                        <span class="option-subtext option-hint">0 for unlimited</span>
                     </div>
                     <div class="stepper" role="group" aria-label="Download limit">
                         <button type="button" id="dlDown" aria-label="Decrease downloads">
@@ -82,16 +82,14 @@
             </div>
 
             <div class="progress-container" id="progressWrap" hidden>
-                <div class="progress-bar">
-                    <div class="progress-fill" id="progressFill"></div>
-                </div>
+                <progress class="progress-bar" id="progressBar" max="100" value="0" aria-label="Upload progress"></progress>
                 <div class="progress-info">
                     <span id="progressLabel">Uploading…</span>
                     <span id="progressPct">0%</span>
                 </div>
             </div>
 
-            <div id="noticeWrap"></div>
+            <div id="noticeWrap" class="notice-wrap" aria-live="polite"></div>
 
             <button type="button" class="btn btn-primary" id="uploadBtn">Upload file</button>
         </section>
@@ -103,8 +101,8 @@
             </div>
 
             <div class="share-row">
-                <input type="text" class="share-input" id="shareUrl" readonly>
-                <button type="button" class="btn btn-primary" id="copyShareBtn" style="width: auto; padding: 10px 18px;">Copy</button>
+                <input type="text" class="share-input" id="shareUrl" aria-label="Share link" readonly spellcheck="false">
+                <button type="button" class="btn btn-primary btn-auto" id="copyShareBtn">Copy</button>
             </div>
 
             <div class="info-grid">
@@ -122,15 +120,15 @@
                 </div>
             </div>
 
-            <div style="display: flex; gap: 10px;">
+            <div class="actions-row">
                 <a href="#" target="_blank" rel="noopener" class="btn btn-secondary" id="previewBtn">Open page</a>
-                <button type="button" class="btn btn-primary" id="sendAnotherBtn">Send another</button>
+                <button type="button" class="btn btn-ghost" id="sendAnotherBtn">Send another</button>
             </div>
         </section>
     </main>
 
     <input type="file" id="fileInput" hidden>
-    <div class="toasts" id="toasts"></div>
+    <div class="toasts" id="toasts" aria-live="polite" aria-atomic="false"></div>
 
     <script src="/app.js"></script>
     <script>
@@ -157,7 +155,7 @@
         const dlValue = document.getElementById('dlValue');
 
         const progressWrap = document.getElementById('progressWrap');
-        const progressFill = document.getElementById('progressFill');
+        const progressBar = document.getElementById('progressBar');
         const progressLabel = document.getElementById('progressLabel');
         const progressPct = document.getElementById('progressPct');
         const noticeWrap = document.getElementById('noticeWrap');
@@ -190,6 +188,7 @@
             if (!msg) return;
             const el = document.createElement('div');
             el.className = 'notice' + (isSuccess ? ' notice-success' : '');
+            el.setAttribute('role', 'alert');
             el.innerHTML = (isSuccess ? window.App.ICON_OK : ICON_WARN) + '<span></span>';
             el.querySelector('span').textContent = msg;
             noticeWrap.appendChild(el);
@@ -250,6 +249,7 @@
             fileExt.textContent = extMatch ? extMatch[1].toUpperCase() : 'FILE';
             dropzone.hidden = true;
             filePill.hidden = false;
+            uploadBtn.focus();
         }
 
         function clearFile() {
@@ -258,15 +258,10 @@
             dropzone.hidden = false;
             filePill.hidden = true;
             showNotice('');
+            dropzone.focus();
         }
 
         dropzone.addEventListener('click', () => { if (!isUploading) fileInput.click(); });
-        dropzone.addEventListener('keydown', (e) => {
-            if ((e.key === 'Enter' || e.key === ' ') && !isUploading) {
-                e.preventDefault();
-                fileInput.click();
-            }
-        });
 
         ['dragenter', 'dragover'].forEach(evt => {
             dropzone.addEventListener(evt, (e) => {
@@ -308,7 +303,7 @@
             uploadBtn.textContent = 'Uploading…';
             showNotice('');
             progressWrap.hidden = false;
-            progressFill.style.width = '0%';
+            progressBar.value = 0;
             progressPct.textContent = '0%';
             progressLabel.textContent = `Uploading ${selectedFile.name}`;
 
@@ -323,7 +318,7 @@
             xhr.upload.addEventListener('progress', (e) => {
                 if (!e.lengthComputable) return;
                 const pct = Math.min((e.loaded / e.total) * 100, 100);
-                progressFill.style.width = `${pct}%`;
+                progressBar.value = pct;
                 progressPct.textContent = `${Math.floor(pct)}%`;
                 progressLabel.textContent = `${fmtBytes(e.loaded)} of ${fmtBytes(e.total)}`;
             });
@@ -400,6 +395,7 @@
             updateDlUI();
             successCard.hidden = true;
             uploadCard.hidden = false;
+            dropzone.focus();
         });
 
         fetch('/api/config')
@@ -407,7 +403,7 @@
             .then(cfg => {
                 if (cfg.max_upload_size_bytes) {
                     maxUploadSizeBytes = cfg.max_upload_size_bytes;
-                    dropzoneHint.textContent = `or click to browse · up to ${fmtBytes(maxUploadSizeBytes)}`;
+                    dropzoneHint.textContent = `Click to browse · ${fmtBytes(maxUploadSizeBytes)} max`;
                 }
                 if (cfg.max_lifetime_days) {
                     maxLifetimeHours = cfg.max_lifetime_days * 24;

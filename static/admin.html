@@ -4,8 +4,8 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
     <meta name="color-scheme" content="light dark">
-    <meta name="theme-color" content="#eceef3" media="(prefers-color-scheme: light)">
-    <meta name="theme-color" content="#0b0c10" media="(prefers-color-scheme: dark)">
+    <meta name="theme-color" content="#eef0f4" media="(prefers-color-scheme: light)">
+    <meta name="theme-color" content="#0a0b0e" media="(prefers-color-scheme: dark)">
     <meta name="robots" content="noindex">
     <title>Admin — XMen Uploader</title>
     <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='9' fill='%230071e3'/%3E%3Cpath d='M16 8v12m0 0 5-5m-5 5-5-5M10 24h12' stroke='white' stroke-width='2.4' stroke-linecap='round' stroke-linejoin='round' fill='none'/%3E%3C/svg%3E">
@@ -21,20 +21,23 @@
                         <path d="M9.5 12l2 2 3.5-3.5"/>
                     </svg>
                 </span>
-                <span class="brand-title">Admin Dashboard</span>
+                <span class="brand-title">XMen Uploader</span>
             </a>
             <a href="/" class="nav-link">Uploader</a>
         </header>
 
         <section class="card" id="loginCard">
             <div class="card-header">
-                <h1 class="card-title">Authenticate</h1>
-                <p class="card-subtitle">Enter admin secret key to view statistics.</p>
+                <h1 class="card-title">Admin dashboard</h1>
+                <p class="card-subtitle">Enter your secret key to view upload statistics.</p>
             </div>
 
-            <form id="loginForm" style="display: flex; flex-direction: column; gap: 14px;">
-                <input type="password" id="secretInput" class="input" placeholder="Secret key" autocomplete="current-password" spellcheck="false" required>
-                <div id="loginNoticeWrap"></div>
+            <form id="loginForm" class="form-stack">
+                <div class="field">
+                    <label class="field-label" for="secretInput">Admin secret</label>
+                    <input type="password" id="secretInput" class="input" placeholder="Enter secret key" autocomplete="current-password" spellcheck="false" required>
+                </div>
+                <div id="loginNoticeWrap" class="notice-wrap" aria-live="polite"></div>
                 <button type="submit" class="btn btn-primary" id="loginBtn">Unlock dashboard</button>
             </form>
         </section>
@@ -60,14 +63,14 @@
                 </div>
             </div>
 
-            <div style="display: flex; gap: 10px;">
-                <button type="button" class="btn btn-primary" id="refreshBtn">Refresh stats</button>
-                <button type="button" class="btn btn-secondary" id="logoutBtn">Sign out</button>
+            <div class="actions-row">
+                <button type="button" class="btn btn-secondary" id="refreshBtn">Refresh stats</button>
+                <button type="button" class="btn btn-ghost" id="logoutBtn">Sign out</button>
             </div>
         </section>
     </main>
 
-    <div class="toasts" id="toasts"></div>
+    <div class="toasts" id="toasts" aria-live="polite" aria-atomic="false"></div>
 
     <script src="/app.js"></script>
     <script>
@@ -97,6 +100,7 @@
             if (!msg) return;
             const el = document.createElement('div');
             el.className = 'notice';
+            el.setAttribute('role', 'alert');
             el.innerHTML = ICON_WARN + '<span></span>';
             el.querySelector('span').textContent = msg;
             loginNoticeWrap.appendChild(el);
@@ -138,6 +142,8 @@
                     loginCard.hidden = false;
                     statsCard.hidden = true;
                     showNotice('Invalid admin secret.');
+                    secretInput.focus();
+                    secretInput.select();
                     return;
                 }
                 if (res.status === 403) {
@@ -187,6 +193,7 @@
             secretInput.value = '';
             statsCard.hidden = true;
             loginCard.hidden = false;
+            secretInput.focus();
             toast('Signed out');
         });
 
