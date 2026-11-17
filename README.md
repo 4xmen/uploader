@@ -2,6 +2,8 @@
 
 A modern, fast, and private file uploader built with Go and vanilla web technologies. Features an Apple Liquid Glass UI, drag-and-drop file sharing, custom expiration times, download limits, and an administrative dashboard.
 
+![XMen Uploader screenshot](screenshot/screenshot.png)
+
 ---
 
 ## Features
