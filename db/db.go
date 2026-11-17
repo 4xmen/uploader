@@ -2,6 +2,7 @@ package db
 
 import (
 	"database/sql"
+	"fmt"
 	"log"
 	"time"
 
@@ -17,6 +18,18 @@ func InitDB() {
 	DB, err = sql.Open("sqlite", config.AppConfig.DatabasePath)
 	if err != nil {
 		log.Fatalf("Failed to open database: %v", err)
+	}
+
+	// SQLite only supports one writer at a time. Serializing connections keeps the
+	// API and the cleanup worker from tripping over each other.
+	DB.SetMaxOpenConns(1)
+	DB.SetMaxIdleConns(1)
+
+	if _, err := DB.Exec(`PRAGMA busy_timeout = 5000;`); err != nil {
+		log.Printf("Warning: failed to set SQLite busy timeout: %v", err)
+	}
+	if _, err := DB.Exec(`PRAGMA journal_mode = WAL;`); err != nil {
+		log.Printf("Warning: failed to enable SQLite WAL mode: %v", err)
 	}
 
 	createTableQuery := `
@@ -38,13 +51,22 @@ func InitDB() {
 	}
 }
 
+func Close() error {
+	if DB == nil {
+		return nil
+	}
+	err := DB.Close()
+	DB = nil
+	return err
+}
+
 func SaveFile(f *models.File) error {
 	query := `
 		INSERT INTO files (id, original_name, storage_name, size, mime_type, uploaded_at, expires_at, max_downloads, download_count)
 		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
 	`
-	uploadedAtStr := f.UploadedAt.Format(time.RFC3339)
-	expiresAtStr := f.ExpiresAt.Format(time.RFC3339)
+	uploadedAtStr := f.UploadedAt.UTC().Format(time.RFC3339)
+	expiresAtStr := f.ExpiresAt.UTC().Format(time.RFC3339)
 
 	_, err := DB.Exec(query, f.ID, f.OriginalName, f.StorageName, f.Size, f.MimeType, uploadedAtStr, expiresAtStr, f.MaxDownloads, f.DownloadCount)
 	return err
@@ -61,8 +83,14 @@ func GetFile(id string) (*models.File, error) {
 		return nil, err
 	}
 
-	f.UploadedAt, _ = time.Parse(time.RFC3339, uploadedAtStr)
-	f.ExpiresAt, _ = time.Parse(time.RFC3339, expiresAtStr)
+	f.UploadedAt, err = time.Parse(time.RFC3339, uploadedAtStr)
+	if err != nil {
+		return nil, fmt.Errorf("parse uploaded_at for %s: %w", id, err)
+	}
+	f.ExpiresAt, err = time.Parse(time.RFC3339, expiresAtStr)
+	if err != nil {
+		return nil, fmt.Errorf("parse expires_at for %s: %w", id, err)
+	}
 	return f, nil
 }
 
@@ -79,11 +107,6 @@ func TryIncrementDownloadCount(id string) (bool, error) {
 	return rows > 0, nil
 }
 
-func IncrementDownloadCount(id string) error {
-	_, err := TryIncrementDownloadCount(id)
-	return err
-}
-
 func DeleteFile(id string) error {
 	query := `DELETE FROM files WHERE id = ?`
 	_, err := DB.Exec(query, id)
@@ -91,20 +114,25 @@ func DeleteFile(id string) error {
 }
 
 func GetExpiredFiles() ([]models.File, error) {
-	query := `SELECT id, storage_name FROM files WHERE expires_at <= ? OR (max_downloads > 0 AND download_count >= max_downloads)`
-	rows, err := DB.Query(query, time.Now().Format(time.RFC3339))
+	// datetime() normalizes legacy rows that were stored with a local UTC offset
+	// before timestamps were written in UTC.
+	query := `SELECT id, storage_name FROM files WHERE datetime(expires_at) <= datetime('now') OR (max_downloads > 0 AND download_count >= max_downloads)`
+	rows, err := DB.Query(query)
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 
 	var files []models.File
 	for rows.Next() {
 		var f models.File
 		if err := rows.Scan(&f.ID, &f.StorageName); err != nil {
-			continue
+			return nil, err
 		}
 		files = append(files, f)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
 	}
 	return files, nil
 }
@@ -112,25 +140,24 @@ func GetExpiredFiles() ([]models.File, error) {
 func GetStats() (map[string]interface{}, error) {
 	stats := make(map[string]interface{})
 
-	var totalFiles int
-	err := DB.QueryRow(`SELECT COUNT(*) FROM files`).Scan(&totalFiles)
-	if err != nil {
-		return nil, err
-	}
-
+	var activeFiles int
 	var totalSize int64
-	err = DB.QueryRow(`SELECT COALESCE(SUM(size), 0) FROM files`).Scan(&totalSize)
-	if err != nil {
-		return nil, err
-	}
-
 	var totalDownloads int
-	err = DB.QueryRow(`SELECT COALESCE(SUM(download_count), 0) FROM files`).Scan(&totalDownloads)
+	err := DB.QueryRow(`
+		SELECT
+			COALESCE(SUM(CASE
+				WHEN datetime(expires_at) > datetime('now')
+					AND (max_downloads = 0 OR download_count < max_downloads)
+				THEN 1 ELSE 0 END), 0),
+			COALESCE(SUM(size), 0),
+			COALESCE(SUM(download_count), 0)
+		FROM files
+	`).Scan(&activeFiles, &totalSize, &totalDownloads)
 	if err != nil {
 		return nil, err
 	}
 
-	stats["active_files"] = totalFiles
+	stats["active_files"] = activeFiles
 	stats["total_size_bytes"] = totalSize
 	stats["total_downloads"] = totalDownloads
 

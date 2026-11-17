@@ -106,6 +106,14 @@
             loginNoticeWrap.appendChild(el);
         }
 
+        function reportError(msg) {
+            if (!statsCard.hidden) {
+                toast(msg, 'warn');
+            } else {
+                showNotice(msg);
+            }
+        }
+
         function animateNumber(element, target, formatter) {
             const startVal = Number(element.dataset.val || 0);
             element.dataset.val = String(target);
@@ -147,11 +155,11 @@
                     return;
                 }
                 if (res.status === 403) {
-                    showNotice('Admin access is disabled on the server.');
+                    reportError('Admin access is disabled on the server.');
                     return;
                 }
                 if (res.status === 429) {
-                    showNotice('Too many attempts. Please wait a minute and retry.');
+                    reportError('Too many attempts. Please wait a minute and retry.');
                     return;
                 }
                 if (!res.ok) {
@@ -169,7 +177,7 @@
                 loginCard.hidden = true;
                 statsCard.hidden = false;
             } catch (err) {
-                showNotice('Failed to connect to server. Check connection.');
+                reportError('Failed to connect to server. Check connection.');
             } finally {
                 loginBtn.disabled = false;
                 refreshBtn.disabled = false;

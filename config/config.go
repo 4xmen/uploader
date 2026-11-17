@@ -26,7 +26,7 @@ func LoadConfig() {
 	_ = godotenv.Load()
 
 	AppConfig = Config{
-		Port:                   getEnv("PORT", "8080"),
+		Port:                   getEnv("PORT", "8089"),
 		MaxUploadSize:          getEnvAsInt64("MAX_UPLOAD_SIZE_MB", 50) * 1024 * 1024,
 		MaxAllowedLifetimeDays: getEnvAsInt("MAX_ALLOWED_LIFETIME_DAYS", 7),
 		AdminSecret:            getEnv("ADMIN_SECRET", ""),
@@ -36,13 +36,21 @@ func LoadConfig() {
 		TrustProxy:             getEnvAsBool("TRUST_PROXY", false),
 	}
 
-	if AppConfig.AdminSecret == "" {
+	switch AppConfig.AdminSecret {
+	case "":
 		log.Println("WARNING: ADMIN_SECRET is not set. Admin endpoints will be disabled.")
-	} else if AppConfig.AdminSecret == "admin123" {
+	case "admin123":
 		log.Println("WARNING: Insecure default ADMIN_SECRET 'admin123' is being used.")
 	}
 
-	if err := os.MkdirAll(AppConfig.StoragePath, os.ModePerm); err != nil {
+	if AppConfig.MaxUploadSize <= 0 {
+		log.Fatal("MAX_UPLOAD_SIZE_MB must be greater than 0")
+	}
+	if AppConfig.MaxAllowedLifetimeDays <= 0 {
+		log.Fatal("MAX_ALLOWED_LIFETIME_DAYS must be greater than 0")
+	}
+
+	if err := os.MkdirAll(AppConfig.StoragePath, 0o755); err != nil {
 		log.Fatalf("Failed to create storage directory: %v", err)
 	}
 }

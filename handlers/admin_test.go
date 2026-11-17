@@ -3,7 +3,6 @@ package handlers
 import (
 	"net/http"
 	"net/http/httptest"
-	"os"
 	"path/filepath"
 	"testing"
 
@@ -12,16 +11,17 @@ import (
 )
 
 func TestAdminStatsHandler(t *testing.T) {
-	tmpDir, err := os.MkdirTemp("", "uploader-test-*")
-	if err != nil {
-		t.Fatalf("failed to create temp dir: %v", err)
-	}
-	defer os.RemoveAll(tmpDir)
+	tmpDir := t.TempDir()
 
 	config.AppConfig.DatabasePath = filepath.Join(tmpDir, "test.db")
 	config.AppConfig.StoragePath = filepath.Join(tmpDir, "uploads")
 	config.AppConfig.AdminSecret = "super-secret-key-1234"
 	db.InitDB()
+	defer func() {
+		if err := db.Close(); err != nil {
+			t.Errorf("failed to close database: %v", err)
+		}
+	}()
 
 	t.Run("rejects request without token", func(t *testing.T) {
 		req := httptest.NewRequest("GET", "/api/admin/stats", nil)
@@ -35,6 +35,15 @@ func TestAdminStatsHandler(t *testing.T) {
 	t.Run("rejects request with wrong bearer token", func(t *testing.T) {
 		req := httptest.NewRequest("GET", "/api/admin/stats", nil)
 		req.Header.Set("Authorization", "Bearer wrong-password")
+		rec := httptest.NewRecorder()
+		AdminStatsHandler(rec, req)
+		if rec.Code != http.StatusUnauthorized {
+			t.Errorf("expected 401, got %d", rec.Code)
+		}
+	})
+
+	t.Run("rejects secret passed in the query string", func(t *testing.T) {
+		req := httptest.NewRequest("GET", "/api/admin/stats?secret=super-secret-key-1234", nil)
 		rec := httptest.NewRecorder()
 		AdminStatsHandler(rec, req)
 		if rec.Code != http.StatusUnauthorized {

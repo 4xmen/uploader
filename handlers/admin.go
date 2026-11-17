@@ -32,7 +32,8 @@ func AdminStatsHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(stats)
+	w.Header().Set("Cache-Control", "no-store")
+	_ = json.NewEncoder(w).Encode(stats)
 }
 
 func extractSecret(r *http.Request) string {
@@ -45,5 +46,5 @@ func extractSecret(r *http.Request) string {
 		return strings.TrimSpace(xSecret)
 	}
 
-	return r.URL.Query().Get("secret")
+	return ""
 }

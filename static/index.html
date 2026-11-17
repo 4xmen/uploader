@@ -28,7 +28,7 @@
         <section class="card" id="uploadCard">
             <div class="card-header">
                 <h1 class="card-title">Send a file</h1>
-                <p class="card-subtitle">Encrypted and self-expiring link.</p>
+                <p class="card-subtitle">Private and self-expiring link.</p>
             </div>
 
             <button type="button" class="dropzone" id="dropzone" aria-label="Choose a file or drop one here">
@@ -183,13 +183,13 @@
             { h: 168, label: '7d' }
         ];
 
-        function showNotice(msg, isSuccess = false) {
+        function showNotice(msg) {
             noticeWrap.innerHTML = '';
             if (!msg) return;
             const el = document.createElement('div');
-            el.className = 'notice' + (isSuccess ? ' notice-success' : '');
+            el.className = 'notice';
             el.setAttribute('role', 'alert');
-            el.innerHTML = (isSuccess ? window.App.ICON_OK : ICON_WARN) + '<span></span>';
+            el.innerHTML = ICON_WARN + '<span></span>';
             el.querySelector('span').textContent = msg;
             noticeWrap.appendChild(el);
         }
@@ -339,11 +339,20 @@
                         showNotice('Invalid server response.');
                     }
                 } else {
-                    let err = 'Upload failed. Please try again.';
+                    let err = '';
                     try {
                         const res = JSON.parse(xhr.responseText);
                         if (res.message) err = res.message;
                     } catch (_) {}
+                    if (!err) {
+                        if (xhr.status === 429) {
+                            err = 'Too many uploads. Please wait a minute and try again.';
+                        } else if (xhr.status === 413) {
+                            err = 'File exceeds maximum upload size.';
+                        } else {
+                            err = 'Upload failed. Please try again.';
+                        }
+                    }
                     showNotice(err);
                 }
                 progressWrap.hidden = true;

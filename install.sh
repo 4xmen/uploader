@@ -6,12 +6,21 @@ REPO="4xmen/uploader"
 INSTALL_DIR="/opt/${SERVICE_NAME}"
 DATA_DIR="/opt/${SERVICE_NAME}/data"
 UPLOAD_DIR="${DATA_DIR}/uploads"
-ENV_DIR="/opt/${SERVICE_NAME}"
-ENV_FILE="${ENV_DIR}/.env"
+ENV_FILE="${INSTALL_DIR}/.env"
 SYSTEMD_UNIT="/etc/systemd/system/${SERVICE_NAME}.service"
 TARGET_OS=""
 TARGET_ARCH=""
 ACTION="install"
+TMP_DIR=""
+BIN_PATH=""
+
+cleanup_tmp() {
+  if [ -n "${TMP_DIR}" ] && [ -d "${TMP_DIR}" ]; then
+    rm -rf "${TMP_DIR}"
+  fi
+}
+
+trap cleanup_tmp EXIT
 
 require_cmd() {
   if ! command -v "$1" >/dev/null 2>&1; then
@@ -174,6 +183,7 @@ download_and_extract() {
   local asset_url="$1"
   local workdir
   workdir=$(mktemp -d)
+  TMP_DIR="${workdir}"
   local archive="${workdir}/release.bin"
 
   echo "[info] Downloading ${asset_url}" >&2
@@ -228,7 +238,7 @@ EOF
   fi
   chmod +x "${bin_path}"
 
-  echo "${bin_path}"
+  BIN_PATH="${bin_path}"
 }
 
 setup_user_and_dirs() {
@@ -249,20 +259,27 @@ setup_user_and_dirs() {
     useradd --system "${SERVICE_NAME}"
   fi
 
-  install -d -m 755 "${INSTALL_DIR}" "${DATA_DIR}" "${UPLOAD_DIR}" "${ENV_DIR}"
+  install -d -m 755 "${INSTALL_DIR}"
+  install -d -m 750 "${DATA_DIR}" "${UPLOAD_DIR}"
   chown -R "${SERVICE_NAME}:${SERVICE_NAME}" "${DATA_DIR}" "${UPLOAD_DIR}"
 }
 
 install_binary() {
   local src_bin="$1"
-  install -m 755 "${src_bin}" "${INSTALL_DIR}/${SERVICE_NAME}"
-  chown "root:root" "${INSTALL_DIR}/${SERVICE_NAME}"
+  local staged="${INSTALL_DIR}/.${SERVICE_NAME}.new"
+  install -m 755 "${src_bin}" "${staged}"
+  chown "root:root" "${staged}"
+  mv -f "${staged}" "${INSTALL_DIR}/${SERVICE_NAME}"
 }
 
 write_env_file() {
   if [ ! -f "${ENV_FILE}" ]; then
     local generated_admin_secret
     generated_admin_secret=$(generate_secret)
+    if [ -z "${generated_admin_secret}" ]; then
+      echo "[error] Failed to generate an admin secret. Install openssl or python3 and retry." >&2
+      exit 1
+    fi
     cat >"${ENV_FILE}" <<EOF
 PORT=8089
 MAX_UPLOAD_SIZE_MB=50
@@ -299,6 +316,7 @@ ExecStart=${INSTALL_DIR}/${SERVICE_NAME}
 Restart=on-failure
 RestartSec=3
 LimitNOFILE=65535
+UMask=0077
 
 [Install]
 WantedBy=multi-user.target
@@ -308,6 +326,7 @@ EOF
 
 start_service() {
   touch "${DATA_DIR}/uploader.db"
+  chmod 600 "${DATA_DIR}/uploader.db" 2>/dev/null || true
   chown -R "${SERVICE_NAME}:${SERVICE_NAME}" "${DATA_DIR}" "${UPLOAD_DIR}"
   systemctl enable "${SERVICE_NAME}"
   if systemctl is-active --quiet "${SERVICE_NAME}"; then
@@ -351,8 +370,8 @@ main() {
 
   local asset_url
   asset_url=$(fetch_latest_asset_url)
-  local bin_path
-  bin_path=$(download_and_extract "${asset_url}")
+  download_and_extract "${asset_url}"
+  local bin_path="${BIN_PATH}"
 
   if [ "${ACTION}" = "update" ]; then
     echo "[info] Updating binary only — keeping existing configuration and data."

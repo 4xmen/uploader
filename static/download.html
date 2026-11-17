@@ -71,8 +71,6 @@
                 </div>
             </div>
 
-            <div id="noticeWrap" class="notice-wrap" aria-live="polite"></div>
-
             <div class="actions-stack">
                 <button type="button" class="btn btn-primary" id="downloadBtn">Download file</button>
                 <button type="button" class="btn btn-secondary" id="copyLinkBtn">Copy link</button>
@@ -87,10 +85,15 @@
     (() => {
         'use strict';
 
-        const { fmtBytes, plural, toast, copyText, ICON_WARN } = window.App;
+        const { fmtBytes, toast, copyText } = window.App;
 
         const pathParts = window.location.pathname.split('/').filter(Boolean);
-        const fileId = decodeURIComponent(pathParts[pathParts.length - 1] || '');
+        let fileId = '';
+        try {
+            fileId = decodeURIComponent(pathParts[pathParts.length - 1] || '');
+        } catch (_) {
+            fileId = '';
+        }
         const INFO_URL = `/api/info/${encodeURIComponent(fileId)}`;
         const DOWNLOAD_URL = `/api/download/${encodeURIComponent(fileId)}`;
 
@@ -106,7 +109,6 @@
         const fileSize = document.getElementById('fileSize');
         const fileExpiry = document.getElementById('fileExpiry');
         const fileDownloads = document.getElementById('fileDownloads');
-        const noticeWrap = document.getElementById('noticeWrap');
         const downloadBtn = document.getElementById('downloadBtn');
         const copyLinkBtn = document.getElementById('copyLinkBtn');
 
@@ -152,8 +154,8 @@
                 }
                 fileExpiry.textContent = formatRemaining(diff);
             }
-            tick();
             countdownTimer = setInterval(tick, 1000);
+            tick();
         }
 
         function renderFile() {
@@ -161,6 +163,9 @@
             fileSize.textContent = fmtBytes(fileData.size);
             const extMatch = /\.([a-zA-Z0-9]{1,6})$/.exec(fileData.original_name);
             fileExt.textContent = extMatch ? extMatch[1].toUpperCase() : 'FILE';
+
+            downloadBtn.disabled = false;
+            downloadBtn.textContent = 'Download file';
 
             if (!fileData.max_downloads) {
                 fileDownloads.textContent = 'Unlimited';
@@ -173,8 +178,16 @@
                 }
             }
 
-            startCountdown();
             showView('file');
+            startCountdown();
+        }
+
+        async function showGone(res) {
+            const body = await res.text().catch(() => '');
+            if (/expired/i.test(body)) {
+                return showError('Link expired', 'This link has reached its expiration time.');
+            }
+            return showError('No downloads left', 'All available downloads for this file have been used.');
         }
 
         async function fetchInfo() {
@@ -185,7 +198,7 @@
                     return showError('File not found', 'This file does not exist or has expired.');
                 }
                 if (res.status === 410) {
-                    return showError('No downloads left', 'All available downloads for this file have been used.');
+                    return showGone(res);
                 }
                 if (!res.ok) {
                     throw new Error(`Server returned ${res.status}`);
@@ -198,7 +211,10 @@
         }
 
         downloadBtn.addEventListener('click', () => {
-            if (!fileData) return;
+            if (!fileData || downloadBtn.disabled) return;
+
+            downloadBtn.disabled = true;
+            downloadBtn.textContent = 'Downloading…';
             toast('Starting download…');
 
             const link = document.createElement('a');
@@ -211,12 +227,23 @@
             setTimeout(async () => {
                 try {
                     const res = await fetch(INFO_URL, { cache: 'no-store' });
-                    if (res.ok) {
-                        fileData = await res.json();
-                        renderFile();
+                    if (res.status === 404) {
+                        return showError('File not found', 'This file no longer exists.');
                     }
-                } catch (_) {}
-            }, 1200);
+                    if (res.status === 410) {
+                        return showGone(res);
+                    }
+                    if (!res.ok) {
+                        throw new Error(`Server returned ${res.status}`);
+                    }
+                    fileData = await res.json();
+                    renderFile();
+                } catch (_) {
+                    downloadBtn.disabled = false;
+                    downloadBtn.textContent = 'Download file';
+                    toast('Could not refresh file info', 'warn');
+                }
+            }, 1500);
         });
 
         copyLinkBtn.addEventListener('click', async () => {

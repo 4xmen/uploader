@@ -11,6 +11,8 @@ Thumbs.db
 
 uploader.db
 uploader.db-journal
+uploader.db-wal
+uploader.db-shm
 
 uploads/*
 !uploads/.gitkeep

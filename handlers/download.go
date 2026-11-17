@@ -3,6 +3,7 @@ package handlers
 import (
 	"database/sql"
 	"encoding/json"
+	"errors"
 	"mime"
 	"net/http"
 	"os"
@@ -19,7 +20,7 @@ func DownloadHandler(w http.ResponseWriter, r *http.Request) {
 
 	file, err := db.GetFile(id)
 	if err != nil {
-		if err == sql.ErrNoRows {
+		if errors.Is(err, sql.ErrNoRows) {
 			http.Error(w, "File not found or expired", http.StatusNotFound)
 			return
 		}
@@ -29,6 +30,28 @@ func DownloadHandler(w http.ResponseWriter, r *http.Request) {
 
 	if time.Now().After(file.ExpiresAt) {
 		http.Error(w, "File expired", http.StatusGone)
+		return
+	}
+
+	safeFileName := filepath.Base(file.StorageName)
+	storagePath := filepath.Join(config.AppConfig.StoragePath, safeFileName)
+
+	// Open the file before consuming a download so missing files do not count,
+	// and so cleanup cannot unlink the file between the check and the response.
+	f, err := os.Open(storagePath)
+	if err != nil {
+		if errors.Is(err, os.ErrNotExist) {
+			http.Error(w, "File missing on disk", http.StatusNotFound)
+			return
+		}
+		http.Error(w, "Internal server error", http.StatusInternalServerError)
+		return
+	}
+	defer func() { _ = f.Close() }()
+
+	info, err := f.Stat()
+	if err != nil {
+		http.Error(w, "Internal server error", http.StatusInternalServerError)
 		return
 	}
 
@@ -42,18 +65,16 @@ func DownloadHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	safeFileName := filepath.Base(file.StorageName)
-	storagePath := filepath.Join(config.AppConfig.StoragePath, safeFileName)
-	if _, err := os.Stat(storagePath); os.IsNotExist(err) {
-		http.Error(w, "File missing on disk", http.StatusNotFound)
-		return
-	}
-
 	cd := mime.FormatMediaType("attachment", map[string]string{"filename": file.OriginalName})
+	if cd == "" {
+		cd = "attachment"
+	}
 	w.Header().Set("Content-Disposition", cd)
-	w.Header().Set("Content-Type", file.MimeType)
-	w.Header().Set("X-Content-Type-Options", "nosniff")
-	http.ServeFile(w, r, storagePath)
+	// Always serve downloads as opaque bytes. Content-Disposition already forces a
+	// download, and this keeps an uploaded HTML/SVG file from ever rendering inline.
+	w.Header().Set("Content-Type", "application/octet-stream")
+	w.Header().Set("Cache-Control", "no-store")
+	http.ServeContent(w, r, file.OriginalName, info.ModTime(), f)
 }
 
 func GetFileInfoHandler(w http.ResponseWriter, r *http.Request) {
@@ -61,7 +82,7 @@ func GetFileInfoHandler(w http.ResponseWriter, r *http.Request) {
 
 	file, err := db.GetFile(id)
 	if err != nil {
-		if err == sql.ErrNoRows {
+		if errors.Is(err, sql.ErrNoRows) {
 			http.Error(w, "File not found", http.StatusNotFound)
 			return
 		}
@@ -80,5 +101,6 @@ func GetFileInfoHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(file)
+	w.Header().Set("Cache-Control", "no-store")
+	_ = json.NewEncoder(w).Encode(file)
 }

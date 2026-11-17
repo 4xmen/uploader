@@ -11,8 +11,8 @@ A modern, fast, and private file uploader built with Go and vanilla web technolo
 - **No Account Required**: Instant drag-and-drop file sharing with automatic share links.
 - **Configurable Limits**: Set maximum file upload size and maximum retention duration.
 - **Download Limits**: Restrict how many times a file can be downloaded before it is deleted.
-- **Automatic Expiration**: Files self-destruct when their deadline passes. Background workers clean up expired files from disk and database.
-- **Admin Dashboard**: Live overview of active files, total downloads, and storage usage.
+- **Automatic Expiration**: Files self-destruct when their deadline passes. A background worker cleans up expired files from disk and database.
+- **Admin Dashboard**: On-demand overview of active files, total downloads, and storage usage.
 - **Hardened Security**:
   - Header-based admin authentication (`Authorization: Bearer <secret>`).
   - Rate limiting on API routes and brute-force protection.
@@ -25,7 +25,7 @@ A modern, fast, and private file uploader built with Go and vanilla web technolo
 
 ## Installation (Ubuntu / Debian)
 
-Install the latest release with one command on any systemd-based Linux host:
+Install the latest release with one command on any systemd-based Linux host running x86_64/amd64:
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/4xmen/uploader/main/install.sh | sudo bash -s -- --install

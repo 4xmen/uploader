@@ -43,8 +43,8 @@
         return true;
       } catch (_) {}
     }
+    const ta = document.createElement('textarea');
     try {
-      const ta = document.createElement('textarea');
       ta.value = text;
       ta.setAttribute('readonly', '');
       ta.style.position = 'fixed';
@@ -54,14 +54,13 @@
       document.body.appendChild(ta);
       ta.select();
       ta.setSelectionRange(0, text.length);
-      const ok = document.execCommand('copy');
-      ta.remove();
-      return ok;
+      return document.execCommand('copy');
     } catch (_) {
       return false;
+    } finally {
+      ta.remove();
     }
   }
 
   window.App = { fmtBytes, plural, toast, copyText, ICON_OK, ICON_WARN };
-  window.Glass = window.App;
 })();

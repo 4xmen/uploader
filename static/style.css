@@ -31,8 +31,6 @@
   --danger-border: rgba(196, 0, 19, 0.18);
 
   --success: #1f7a34;
-  --success-bg: rgba(31, 122, 52, 0.08);
-  --success-border: rgba(31, 122, 52, 0.2);
 
   --card-highlight: inset 0 1px 0 rgba(255, 255, 255, 0.65);
   --shadow-lg: 0 1px 2px rgba(18, 24, 40, 0.04), 0 24px 48px -24px rgba(18, 24, 40, 0.22);
@@ -45,8 +43,6 @@
   --text-xs: 12px;
   --text-sm: 14px;
   --text-base: 16px;
-  --text-lg: 18px;
-  --text-xl: 20px;
   --text-2xl: 24px;
   --text-3xl: 30px;
 
@@ -56,7 +52,6 @@
   --sp-4: 16px;
   --sp-5: 24px;
   --sp-6: 32px;
-  --sp-7: 48px;
 
   --r-card: 24px;
   --r-inner: 16px;
@@ -99,8 +94,6 @@
     --danger-border: rgba(255, 69, 58, 0.3);
 
     --success: #30d158;
-    --success-bg: rgba(48, 209, 88, 0.14);
-    --success-border: rgba(48, 209, 88, 0.28);
 
     --card-highlight: inset 0 1px 0 rgba(255, 255, 255, 0.06);
     --shadow-lg: 0 1px 2px rgba(0, 0, 0, 0.25), 0 24px 48px -24px rgba(0, 0, 0, 0.65);
@@ -759,12 +752,6 @@ body {
   height: 18px;
   flex: none;
   margin-top: 1px;
-}
-
-.notice-success {
-  color: var(--success);
-  background: var(--success-bg);
-  border-color: var(--success-border);
 }
 
 /* ---------- Success / share ---------- */
